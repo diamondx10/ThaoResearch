@@ -1,7 +1,7 @@
 general:
   enable_desktop_toast: true
   enable_telegram_alert: true
-  max_articles_per_run: 10
+  max_articles_per_run: 50
   timezone: Asia/Ho_Chi_Minh
   language: en
   force_send_duplicates: true
@@ -10,273 +10,217 @@ scheduler:
   mode: fixed
   fixed_interval_minutes: 1
 sources:
-  # ===========================================================================
-  # Soybean Oil news sources — verified working as of 2026-08-09
-  # ===========================================================================
-  #
-  # Section organization (all enabled by default):
-  #   A. Google News site: filters  — wrap Investing/Reuters/Bloomberg/Barchart
-  #   B. Google News semantic queries — chuyen de (biodiesel, crush, NOPA, ...)
-  #   C. Direct RSS feeds — FT, NYT, WSJ, Bloomberg, USDA, CME Group
-  #
-  # Disabled sources (with comments) at the bottom are kept for reference.
-  # They were tested but failed (Cloudflare blocks / auth required / URL drift).
-  # Re-enable them only if the publisher changes their access policy.
-  # ===========================================================================
-
-  # ---------------------------------------------------------------------------
-  # A. Google News site: filters  (wrap specific publishers we cannot crawl)
-  # ---------------------------------------------------------------------------
-
-  - name: Google News - Soybean Oil (all)
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+OR+%22soyoil%22+OR+%22SBO%22&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil (Investing.com)
-    type: rss
-    url: https://news.google.com/rss/search?q=site%3Ainvesting.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil (Reuters)
-    type: rss
-    url: https://news.google.com/rss/search?q=site%3Areuters.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil (Bloomberg)
-    type: rss
-    url: https://news.google.com/rss/search?q=site%3Abloomberg.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil (Barchart)
-    type: rss
-    url: https://news.google.com/rss/search?q=site%3Abarchart.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil (S&P Global / Platts / AgriCensus)
-    type: rss
-    url: https://news.google.com/rss/search?q=site%3Aspglobal.com+OR+site%3Aplatts.com+OR+site%3Aagricensus.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  # ---------------------------------------------------------------------------
-  # B. Google News semantic queries  (chuyen de soybean oil)
-  # ---------------------------------------------------------------------------
-
-  - name: Google News - Soybean Oil Price CBOT
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+%22CBOT%22+OR+%22ZL%22+price&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil Biodiesel EPA RVO
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+biodiesel+EPA+RVO&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil Brazil Argentina Export
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+%22Argentina%22+%22Brazil%22+export&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil NOPA Report
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+NOPA+report&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil Palm Oil Spread
-    type: rss
-    url: https://news.google.com/rss/search?q=%22palm+oil%22+%22soybean+oil%22+spread&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil Crush Margin Meal
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+crush+margin+meal&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil China India Demand
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+China+India+demand&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil High ILUC EU
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+%22ILUC%22+EU+biodiesel&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil Renewable Diesel B100
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+%22renewable+diesel%22+B100&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil CME Group
-    type: rss
-    url: https://news.google.com/rss/search?q=site%3Acmegroup.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  - name: Google News - Soybean Oil SGS Cotecna Inspections
-    type: rss
-    url: https://news.google.com/rss/search?q=%22soybean+oil%22+SGS+OR+Cotecna+OR+inspection+OR+export&hl=en-US&gl=US&ceid=US:en
-    enabled: true
-
-  # ---------------------------------------------------------------------------
-  # C. Direct RSS feeds — major publishers (verified working)
-  # ---------------------------------------------------------------------------
-
-  - name: Bloomberg - Markets
-    type: rss
-    url: https://feeds.bloomberg.com/markets/news.rss
-    enabled: true
-
-  - name: Financial Times - Commodities
-    type: rss
-    url: https://www.ft.com/commodities?format=rss
-    enabled: true
-
-  - name: New York Times - Energy & Environment
-    type: rss
-    url: https://rss.nytimes.com/services/xml/rss/nyt/EnergyEnvironment.xml
-    enabled: true
-
-  - name: New York Times - Business
-    type: rss
-    url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml
-    enabled: true
-
-  - name: Wall Street Journal - World News
-    type: rss
-    url: https://feeds.a.dj.com/rss/RSSWorldNews.xml
-    enabled: true
-
-  - name: Fortune
-    type: rss
-    url: https://fortune.com/feed
-    enabled: true
-
-  # ===========================================================================
-  # Disabled sources — kept for reference. Re-enable only if access opens up.
-  # ===========================================================================
-
-  # Investing.com blocks bots (HTTP 403). Their public RSS at /rss/news.rss
-  # exists but returns general news, not a soybean-oil-filtered feed. Use the
-  # site:investing.com Google News query above instead.
-  - name: Investing.com - News RSS (general)
-    type: rss
-    url: https://www.investing.com/rss/news.rss
-    enabled: false
-
-  - name: Investing.com - Soybean Oil News
-    type: html
-    url: https://www.investing.com/commodities/soybean-oil-news
-    enabled: false
-
-  - name: Investing.com - Oilseeds News
-    type: html
-    url: https://www.investing.com/news/commodities-news/oilseeds
-    enabled: false
-
-  - name: Investing.com - Commodities News
-    type: html
-    url: https://www.investing.com/news/commodities-news
-    enabled: false
-
-  # Reuters requires authentication for its /rss/ endpoints (HTTP 401).
-  - name: Reuters - Commodities
-    type: rss
-    url: https://www.reuters.com/rss/Commodities
-    enabled: false
-
-  - name: Reuters - Markets (agriculture)
-    type: rss
-    url: https://www.reuters.com/rss/BusinessNews
-    enabled: false
-
-  # Barchart changed their URL structure (HTTP 404).
-  - name: Barchart - Soybean Oil News
-    type: html
-    url: https://www.barchart.com/news/commodities/Soybean%20Oil
-    enabled: false
-
-  # Bloomberg Oil & Gas RSS — not relevant for soybean oil.
-  - name: Bloomberg - Oil & Gas
-    type: rss
-    url: https://feeds.bloomberg.com/oil-and-gas.rss
-    enabled: false
-
-  # USDA changed feed endpoints (HTTP 403).
-  - name: USDA - Press Releases
-    type: rss
-    url: https://www.usda.gov/rss/latest-releases.xml
-    enabled: false
-
+- name: Google News - Soybean Oil (all)
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+OR+%22soyoil%22+OR+%22SBO%22&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil (Investing.com)
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=site%3Ainvesting.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil (Reuters)
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=site%3Areuters.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil (Bloomberg)
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=site%3Abloomberg.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil (Barchart)
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=site%3Abarchart.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil (S&P Global / Platts / AgriCensus)
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=site%3Aspglobal.com+OR+site%3Aplatts.com+OR+site%3Aagricensus.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil Price CBOT
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+%22CBOT%22+OR+%22ZL%22+price&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil Biodiesel EPA RVO
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+biodiesel+EPA+RVO&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil Brazil Argentina Export
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+%22Argentina%22+%22Brazil%22+export&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil NOPA Report
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+NOPA+report&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil Palm Oil Spread
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22palm+oil%22+%22soybean+oil%22+spread&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil Crush Margin Meal
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+crush+margin+meal&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil China India Demand
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+China+India+demand&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil High ILUC EU
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+%22ILUC%22+EU+biodiesel&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil Renewable Diesel B100
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+%22renewable+diesel%22+B100&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil CME Group
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=site%3Acmegroup.com+%22soybean+oil%22&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Google News - Soybean Oil SGS Cotecna Inspections
+  type: rss
+  url: 
+    https://news.google.com/rss/search?q=%22soybean+oil%22+SGS+OR+Cotecna+OR+inspection+OR+export&hl=en-US&gl=US&ceid=US:en
+  enabled: true
+- name: Bloomberg - Markets
+  type: rss
+  url: https://feeds.bloomberg.com/markets/news.rss
+  enabled: true
+- name: Financial Times - Commodities
+  type: rss
+  url: https://www.ft.com/commodities?format=rss
+  enabled: true
+- name: New York Times - Energy & Environment
+  type: rss
+  url: https://rss.nytimes.com/services/xml/rss/nyt/EnergyEnvironment.xml
+  enabled: true
+- name: New York Times - Business
+  type: rss
+  url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml
+  enabled: true
+- name: Wall Street Journal - World News
+  type: rss
+  url: https://feeds.a.dj.com/rss/RSSWorldNews.xml
+  enabled: true
+- name: Fortune
+  type: rss
+  url: https://fortune.com/feed
+  enabled: true
+- name: Investing.com - News RSS (general)
+  type: rss
+  url: https://www.investing.com/rss/news.rss
+  enabled: false
+- name: Investing.com - Soybean Oil News
+  type: html
+  url: https://www.investing.com/commodities/soybean-oil-news
+  enabled: false
+- name: Investing.com - Oilseeds News
+  type: html
+  url: https://www.investing.com/news/commodities-news/oilseeds
+  enabled: false
+- name: Investing.com - Commodities News
+  type: html
+  url: https://www.investing.com/news/commodities-news
+  enabled: false
+- name: Reuters - Commodities
+  type: rss
+  url: https://www.reuters.com/rss/Commodities
+  enabled: false
+- name: Reuters - Markets (agriculture)
+  type: rss
+  url: https://www.reuters.com/rss/BusinessNews
+  enabled: false
+- name: Barchart - Soybean Oil News
+  type: html
+  url: https://www.barchart.com/news/commodities/Soybean%20Oil
+  enabled: false
+- name: Bloomberg - Oil & Gas
+  type: rss
+  url: https://feeds.bloomberg.com/oil-and-gas.rss
+  enabled: false
+- name: USDA - Press Releases
+  type: rss
+  url: https://www.usda.gov/rss/latest-releases.xml
+  enabled: false
 commodities:
-  - name: Soybean Oil
-    keywords:
-      - soybean oil
-      - soyoil
-      - SBO
-      - bean oil
-      - soybean-oil
-      - palm oil
-      - vegoil
-      - vegetable oil
-      - edible oil
-      - oilseed
-      - oilseeds
-      - zl futures
-      - zl
-      - soybean futures
-      - brazil soybean
-      - argentina soybean
-      - biodiesel
-      - renewable diesel
-      - NOPA
-      - crush margin
-      - RVO
-      - EPA biofuel
-      - WASDE
-      - ILUC
-    enabled: true
-    # Price threshold in USD cents per pound (CBOT ZL futures unit).
-    # ~45 cents/lb is the long-run average; alerts above 50 fire on rallies,
-    # below 35 fire on crashes. Set to null to disable price-triggered alerts.
-    price_threshold: 50.0
-
+- name: Soybean Oil
+  keywords:
+  - soybean oil
+  - soyoil
+  - SBO
+  - bean oil
+  - soybean-oil
+  - palm oil
+  - vegoil
+  - vegetable oil
+  - edible oil
+  - oilseed
+  - oilseeds
+  - zl futures
+  - zl
+  - soybean futures
+  - brazil soybean
+  - argentina soybean
+  - biodiesel
+  - renewable diesel
+  - NOPA
+  - crush margin
+  - RVO
+  - EPA biofuel
+  - WASDE
+  - ILUC
+  enabled: true
+  price_threshold: 50.0
 filters:
   high_priority_keywords:
-    - halt
-    - surge
-    - crash
-    - sanctions
-    - embargo
-    - record
-    - forecast
-    - close
-    - settlement
-    - rally
-    - slump
-    - export
-    - import
-    - crush
-    - biodiesel
-    - renewable diesel
-    - RIN
-    - WASDE
-    - USDA
-    - tariff
-    - trade war
-    - china
-    - india
-    - biofuel mandate
-    - EPA
-    - RVO
-    - NOPA
-    - B100
-    - ILUC
-    - EU deforestation
+  - halt
+  - surge
+  - crash
+  - sanctions
+  - embargo
+  - record
+  - forecast
+  - close
+  - settlement
+  - rally
+  - slump
+  - export
+  - import
+  - crush
+  - biodiesel
+  - renewable diesel
+  - RIN
+  - WASDE
+  - USDA
+  - tariff
+  - trade war
+  - china
+  - india
+  - biofuel mandate
+  - EPA
+  - RVO
+  - NOPA
+  - B100
+  - ILUC
+  - EU deforestation
   blacklist_keywords:
-    - advertisement
-    - sponsored
-    - premium content
-    - signup
-    - newsletter signup
+  - advertisement
+  - sponsored
+  - premium content
+  - signup
+  - newsletter signup
   enable_delta_alert: true
   delta_threshold_pct: 5.0

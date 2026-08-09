@@ -1549,12 +1549,36 @@ def _gather_config(
 
 
 def _persist_config(new_config, config_path, state, parent_window):
-    """Write config.yaml + apply autostart. Show dialogs. Return True on success."""
+    """Write init_config.yaml + config.yaml + apply autostart. Show dialogs. Return True on success.
+
+    The autosave loop writes only ``init_config.yaml`` (so a half-edited
+    field never clobbers the file the user originally saved). The
+    manual Save button used to write only ``config.yaml`` — but the
+    load order at startup prefers ``init_config.yaml`` when it exists,
+    so a manual Save could end up being silently shadowed by an older
+    autosave. Writing to BOTH files from manual Save guarantees that
+    "I clicked Save and the value changed" is always true regardless
+    of which file the next launch loads from.
+    """
     if new_config is None:
         return False
 
-    if not _persist_config_to(new_config, config_path):
+    # Write to init_config.yaml first (the canonical autosave target,
+    # also the file the load order prefers on next launch).
+    init_target = _resolve_init_config_path(config_path)
+    if not _persist_config_to(new_config, init_target):
         return False
+
+    # Mirror to config.yaml so a manual Save still updates the file the
+    # user typically edits by hand. We skip this if the resolved paths
+    # happen to be the same (single-file mode).
+    try:
+        if Path(init_target).resolve() != Path(config_path).resolve():
+            _persist_config_to(new_config, config_path)
+    except Exception:
+        # Mirror failure shouldn't fail the Save — init_config.yaml is
+        # already up to date.
+        pass
 
     # Telegram credentials (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) live in .env
     # and are managed manually — not written from the Settings GUI.
