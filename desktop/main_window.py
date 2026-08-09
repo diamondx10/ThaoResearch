@@ -14,6 +14,7 @@ import logging
 import sys
 import threading
 import tkinter as tk
+import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -496,11 +497,15 @@ class MainWindow:
         # Treeview — supports per-row font weights via tags, multi-column.
         # ``height=12`` makes the visible list comfortable; the user can
         # still scroll within the pane.
+        # Columns: status | commodity | title | published-time | link-action.
+        # The ``link`` column shows a clickable "Read more…" label that
+        # opens the article URL in the user's default browser (handled
+        # in ``_on_recent_click`` by inspecting ``identify_column``).
         tree_frame = ttk.Frame(art_holder_inner)
         tree_frame.pack(fill="both", expand=True)
         self.articles_tree = ttk.Treeview(
             tree_frame,
-            columns=("status", "commodity", "title"),
+            columns=("status", "commodity", "title", "time", "link"),
             show="headings",
             selectmode="browse",
             height=12,
@@ -508,9 +513,13 @@ class MainWindow:
         self.articles_tree.heading("status", text="")
         self.articles_tree.heading("commodity", text="Commodity")
         self.articles_tree.heading("title", text="Title")
+        self.articles_tree.heading("time", text="Published")
+        self.articles_tree.heading("link", text="")
         self.articles_tree.column("status", width=70, stretch=False, anchor="w")
         self.articles_tree.column("commodity", width=140, stretch=False, anchor="w")
-        self.articles_tree.column("title", width=400, stretch=True, anchor="w")
+        self.articles_tree.column("title", width=360, stretch=True, anchor="w")
+        self.articles_tree.column("time", width=110, stretch=False, anchor="w")
+        self.articles_tree.column("link", width=110, stretch=False, anchor="w")
         art_tv_vsb = ttk.Scrollbar(
             tree_frame, orient="vertical", command=self.articles_tree.yview
         )
@@ -519,11 +528,16 @@ class MainWindow:
         art_tv_vsb.pack(side="right", fill="y")
 
         # Visual tags — unread = bold + dark text, read = normal weight.
+        # The ``link`` tag makes the "Read more…" cell visually distinct
+        # and signals that it's clickable.
         self.articles_tree.tag_configure("unread", font=("Segoe UI", 9, "bold"))
         self.articles_tree.tag_configure("read", font=("Segoe UI", 9))
         self.articles_tree.tag_configure("urgent", foreground="#C42B1C")
         self.articles_tree.tag_configure("price", foreground="#1565C0")
         self.articles_tree.tag_configure("news", foreground="#1F1F1F")
+        self.articles_tree.tag_configure(
+            "link", foreground="#1565C0", font=("Segoe UI", 9, "underline")
+        )
 
         # Bindings: click toggles read; double-click opens viewer; hover shows
         # tooltip with summary.
@@ -541,8 +555,13 @@ class MainWindow:
         self._article_tip_after_id = None
         self._article_tip_article_id = None
 
-        # In-memory ring buffer of (article_id, article, status_label,
-        # commodity, title, read_bool). Capped at 50 so the tree stays fast.
+        # In-memory ring buffer of
+        #   (article_id, article, status_label, commodity, title,
+        #    time_str, link_url, read_bool)
+        # Capped at 50 so the tree stays fast. ``time_str`` is the
+        # formatted ``pub_date`` rendered into the "Published" column;
+        # ``link_url`` is the raw article URL rendered into the
+        # "Read more…" cell (click → opens browser).
         self._recent_articles: list = []
         self._recent_articles_max = 50
 
@@ -600,13 +619,62 @@ class MainWindow:
                 return str(id(article))
 
     def _on_recent_click(self, event):
-        """Single click on a row toggles its read state and selects it."""
+        """Single click on a row toggles its read state and selects it.
+
+        If the click lands on the "link" column ("Read more…" cell), we
+        open the article URL in the user's default browser instead of
+        toggling the read state — that's the whole point of having a
+        clickable link column.
+        """
         row = self.articles_tree.identify_row(event.y)
         if not row:
             return
+        col_id = self.articles_tree.identify_column(event.x)
+        # Always select the row so the user sees feedback.
         self.articles_tree.selection_set(row)
-        # Toggle read on click — click to "I've seen this"
+
+        # ``identify_column`` returns Tk symbolic names like "#5" — the
+        # 5th column is our "link" column ("status"=#1, "commodity"=#2,
+        # "title"=#3, "time"=#4, "link"=#5).
+        if col_id == "#5":
+            self._open_recent_link(row)
+            return
+
+        # Click on any other column toggles read.
         self._mark_selected_read(True)
+
+    def _open_recent_link(self, row):
+        """Open the article URL of a recent-articles row in the OS browser.
+
+        Defensive: if the row index is stale (rare — the list refreshes
+        on every push) we silently bail. ``webbrowser.open`` is wrapped
+        in try/except because some Windows corporate environments
+        override the default browser registration and the call can raise
+        rather than no-op.
+        """
+        try:
+            idx = int(row)
+        except (TypeError, ValueError):
+            return
+        if idx < 0 or idx >= len(self._recent_articles):
+            return
+        _art_id, article, _status, _commodity, _title, _time_str, _link, _read = (
+            self._recent_articles[idx]
+        )
+        url = (getattr(article, "link", "") or "").strip()
+        if not url:
+            logger.debug("Open-link: article has no URL")
+            return
+        # Treat the click as "I have seen this" too — the user clearly
+        # engaged with the article.
+        self._mark_selected_read(True)
+        try:
+            ok = webbrowser.open(url, new=2, autoraise=True)
+            logger.info("Opened article link in browser: %s", url[:80])
+            if not ok:
+                logger.warning("webbrowser.open returned False for %s", url[:80])
+        except Exception as e:
+            logger.warning("Failed to open article link %s: %s", url[:80], e)
 
     def _on_recent_motion(self, event):
         """Show a tooltip with the article summary after hovering 400ms."""
@@ -620,7 +688,9 @@ class MainWindow:
             return
         if idx < 0 or idx >= len(self._recent_articles):
             return
-        _art_id, article, _status, _commodity, _title, _read = self._recent_articles[idx]
+        _art_id, article, _status, _commodity, _title, _time_str, _link, _read = (
+            self._recent_articles[idx]
+        )
         # Cancel any pending tooltip request, schedule a new one.
         if self._article_tip_after_id is not None:
             try:
@@ -707,16 +777,20 @@ class MainWindow:
         idx = self._selected_recent_index()
         if idx is None or idx < 0 or idx >= len(self._recent_articles):
             return
-        art_id, article, status, commodity, title, _read = self._recent_articles[idx]
-        self._recent_articles[idx] = (art_id, article, status, commodity, title, read)
+        (
+            art_id, article, status, commodity, title, time_str, link, _read
+        ) = self._recent_articles[idx]
+        self._recent_articles[idx] = (
+            art_id, article, status, commodity, title, time_str, link, read
+        )
         self._refresh_recent_articles_view()
 
     def _mark_all_read(self, read: bool):
         if not self._recent_articles:
             return
         self._recent_articles = [
-            (a, b, c, d, e, read)
-            for (a, b, c, d, e, _r) in self._recent_articles
+            (a, b, c, d, e, f, g, read)
+            for (a, b, c, d, e, f, g, _r) in self._recent_articles
         ]
         self._refresh_recent_articles_view()
 
@@ -734,9 +808,9 @@ class MainWindow:
             self.articles_tree.delete(*self.articles_tree.get_children())
         except tk.TclError:
             return
-        for idx, (_art_id, article, status, commodity, title, read) in enumerate(
-            self._recent_articles
-        ):
+        for idx, (
+            _art_id, article, status, commodity, title, time_str, link, read
+        ) in enumerate(self._recent_articles):
             if flt == "unread" and read:
                 continue
             if flt == "read" and not read:
@@ -748,18 +822,34 @@ class MainWindow:
                 else "news"
             )
             tag = ("unread" if not read else "read", kind)
+            # Only show the "Read more…" label when we actually have a URL.
+            link_label = "Read more..." if link else ""
             self.articles_tree.insert(
                 "", "end", iid=str(idx),
-                values=(status, commodity, title),
+                values=(status, commodity, title, time_str, link_label),
                 tags=tag,
             )
+            # If the row has a clickable link, add the "link" tag to a
+            # SECOND pass for that same row so the cell render is blue +
+            # underlined. Tkinter lets us re-tag by inserting again would
+            # duplicate the row, so we use ``item`` to add a tag.
+            if link:
+                try:
+                    self.articles_tree.item(
+                        str(idx),
+                        tags=tag + ("link",),
+                    )
+                except tk.TclError:
+                    pass
 
     def _on_recent_article_open(self, _event=None):
         """Double-click / Enter → open ArticleViewer for the selected row."""
         idx = self._selected_recent_index()
         if idx is None or idx < 0 or idx >= len(self._recent_articles):
             return
-        _art_id, article, _status, _commodity, _title, _read = self._recent_articles[idx]
+        (
+            _art_id, article, _status, _commodity, _title, _time_str, _link, _read
+        ) = self._recent_articles[idx]
         if self.on_open_article:
             try:
                 self.on_open_article(article)
@@ -790,18 +880,75 @@ class MainWindow:
             title = (article.title or "").replace("\n", " ")
             if len(title) > 110:
                 title = title[:107] + "..."
+            # Format the published time into a compact, human-readable
+            # string for the "Published" column. We render in the
+            # configured timezone (Asia/Ho_Chi_Minh by default) so the
+            # user sees their local time, not the source's UTC stamp.
+            time_str = self._format_pub_date(getattr(article, "pub_date", None))
+            link = (getattr(article, "link", "") or "").strip()
         except Exception:
             status, commodity, title = "[?]", "?", "(article)"
+            time_str = ""
+            link = ""
 
         art_id = self._article_key(article)
         # Dedupe: if an article with the same hash is already present at the
         # top, skip the push.
         if self._recent_articles and self._recent_articles[0][0] == art_id:
             return
-        self._recent_articles.insert(0, (art_id, article, status, commodity, title, False))
+        self._recent_articles.insert(
+            0,
+            (art_id, article, status, commodity, title, time_str, link, False),
+        )
         if len(self._recent_articles) > self._recent_articles_max:
             self._recent_articles = self._recent_articles[: self._recent_articles_max]
         self._refresh_recent_articles_view()
+
+    @staticmethod
+    def _format_pub_date(pub_date) -> str:
+        """Format ``pub_date`` for the recent-articles "Published" column.
+
+        Output examples:
+            * "2026-08-09 20:31"    (when timezone is Asia/Ho_Chi_Minh)
+            * "—"                   (when pub_date is missing / unparseable)
+
+        The conversion uses the timezone from the loaded ``config.yaml``
+        (``general.timezone``). If config can't be loaded for any reason
+        we fall back to converting to local time instead of crashing.
+        """
+        if pub_date is None:
+            return "—"
+        try:
+            # If the datetime is naive, assume UTC (RSS feeds commonly
+            # ship naive timestamps in UTC).
+            if pub_date.tzinfo is None:
+                pub_date = pub_date.replace(tzinfo=timezone.utc)
+            # Convert to the app's configured timezone if available;
+            # fall back to local time.
+            tz_name = None
+            try:
+                # Lazy import to avoid a hard dep on main.load_config at
+                # import time — main.py itself imports from desktop.*.
+                from utils.paths import APP_ROOT
+                import yaml  # type: ignore
+                cfg_path = APP_ROOT / "config.yaml"
+                if cfg_path.exists():
+                    with open(cfg_path, "r", encoding="utf-8") as fh:
+                        cfg = yaml.safe_load(fh) or {}
+                    tz_name = ((cfg.get("general") or {}).get("timezone"))
+            except Exception:
+                tz_name = None
+            if tz_name:
+                try:
+                    from zoneinfo import ZoneInfo
+                    pub_date = pub_date.astimezone(ZoneInfo(tz_name))
+                except Exception:
+                    pub_date = pub_date.astimezone()
+            else:
+                pub_date = pub_date.astimezone()
+            return pub_date.strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            return "—"
 
     def _poll_gui_queue(self) -> None:
         """Drain gui_queue events that affect this window.
