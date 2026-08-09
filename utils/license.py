@@ -25,9 +25,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple
 
+from utils.paths import DATA_DIR
+
 logger = logging.getLogger("thaoresearch.utils.license")
 
-LICENSE_FILE = Path("data/license.dat")
+LICENSE_FILE = DATA_DIR / "license.dat"
 
 # Status strings used in the UI. Keep these stable — locale files key
 # off them for translations.

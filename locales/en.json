@@ -168,5 +168,7 @@
   "main.log_label": "Recent log (logs/app.log)",
   "main.lang": "Language",
   "main.config": "Config",
-  "main.saved_indicator": "Saved"
+  "main.saved_indicator": "Saved",
+  "main.exit_title": "Exit ThaoResearch?",
+  "main.exit_confirm": "This will stop the scheduler and Telegram alerts. Continue?"
 }

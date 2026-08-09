@@ -8,7 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
 
-DB_DIR = Path("data")
+from utils.paths import DATA_DIR
+
+DB_DIR = DATA_DIR
 DB_PATH = DB_DIR / "history.db"
 
 _local = threading.local()

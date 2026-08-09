@@ -10,7 +10,7 @@ import asyncio
 import logging
 import re
 import threading
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from models.article import Article
 
@@ -325,8 +325,9 @@ class TelegramNotifier:
             return
         try:
             data = (query.data or "").strip()
-            if not data.startswith("sum:"):
+            if not (data.startswith("sum:") or data.startswith("hide:")):
                 return
+            is_expand = data.startswith("sum:")
             article_hash = data.split(":", 1)[1]
 
             # Fetch the original row so we can re-render the heading + link.
@@ -350,31 +351,65 @@ class TelegramNotifier:
                 logger.warning("callback DB lookup failed: %s", e)
 
             original = getattr(query.message, "text", "") or ""
-            new_text = self._compose_summary_view(
-                heading=heading,
-                original_text=original,
-                link=link,
-                summary=summary,
-            )
 
-            # Edit the message: keep heading + link, insert summary in
-            # between, remove the inline keyboard (no Hide button).
-            try:
-                await query.edit_message_text(
-                    text=new_text[:TELEGRAM_MSG_LIMIT],
-                    parse_mode="Markdown",
-                    reply_markup=None,
+            if is_expand:
+                # Expand: rebuild the message with summary spliced in, and
+                # swap the inline button to "Summary ▲" (callback `hide:`).
+                new_text = self._compose_summary_view(
+                    heading=heading,
+                    original_text=original,
+                    link=link,
+                    summary=summary,
                 )
-            except Exception as e:
-                # Markdown can fail on edge characters; retry as plain text.
-                logger.debug("edit_message_text (md) failed: %s — retrying plain", e)
+                # Try Markdown first; fall back to plain text on edge chars.
                 try:
                     await query.edit_message_text(
-                        text=self._strip_markdown(new_text)[:TELEGRAM_MSG_LIMIT],
-                        reply_markup=None,
+                        text=new_text[:TELEGRAM_MSG_LIMIT],
+                        parse_mode="Markdown",
+                        reply_markup=self._summary_reply_markup(
+                            article_hash, expanded=True
+                        ),
                     )
-                except Exception as e2:
-                    logger.warning("edit_message_text plain failed: %s", e2)
+                except Exception as e:
+                    logger.debug(
+                        "edit_message_text (md) failed: %s — retrying plain", e
+                    )
+                    try:
+                        await query.edit_message_text(
+                            text=self._strip_markdown(new_text)[:TELEGRAM_MSG_LIMIT],
+                            reply_markup=self._summary_reply_markup(
+                                article_hash, expanded=True
+                            ),
+                        )
+                    except Exception as e2:
+                        logger.warning("edit_message_text plain failed: %s", e2)
+            else:
+                # Collapse: rebuild the short view (heading + link only),
+                # drop the inline keyboard to "Summary ▼".
+                new_text = self._compose_short_view(
+                    heading=heading, link=link, original_text=original
+                )
+                try:
+                    await query.edit_message_text(
+                        text=new_text[:TELEGRAM_MSG_LIMIT],
+                        parse_mode="Markdown",
+                        reply_markup=self._summary_reply_markup(
+                            article_hash, expanded=False
+                        ),
+                    )
+                except Exception as e:
+                    logger.debug(
+                        "edit_message_text (md) failed: %s — retrying plain", e
+                    )
+                    try:
+                        await query.edit_message_text(
+                            text=self._strip_markdown(new_text)[:TELEGRAM_MSG_LIMIT],
+                            reply_markup=self._summary_reply_markup(
+                                article_hash, expanded=False
+                            ),
+                        )
+                    except Exception as e2:
+                        logger.warning("edit_message_text plain failed: %s", e2)
 
             # Single, silent answer — the message itself is already updated.
             try:
@@ -503,3 +538,74 @@ class TelegramNotifier:
         except Exception as e:
             logger.warning("lookup_summary failed: %s", e)
         return ""
+
+    @staticmethod
+    def _summary_reply_markup(article_hash: str, expanded: bool):
+        """Build the inline keyboard for the summary expand/collapse buttons.
+
+        The label and ``callback_data`` flip between
+        ``Summary ▼`` (sum:…) and ``Summary ▲`` (hide:…) so the user can
+        toggle the inline summary without a network reload.
+        """
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        if expanded:
+            label = "Summary \u25b2"
+            callback = f"hide:{article_hash}"
+        else:
+            label = "Summary \u25bc"
+            callback = f"sum:{article_hash}"
+        return InlineKeyboardMarkup(
+            [[InlineKeyboardButton(label, callback_data=callback)]]
+        )
+
+    @staticmethod
+    def _compose_short_view(heading: Optional[str], link: str, original_text: str) -> str:
+        """Rebuild the **collapsed** short view of the article message.
+
+        Used when the user taps ``Summary ▲`` to hide the inline summary
+        snippet — we want to restore the original compact form
+        (``heading`` + ``link``) without having to re-fetch anything.
+
+        Falls back to ``original_text`` when neither heading nor a
+        recognisable link is available, so we never lose the user's
+        context on collapse.
+        """
+        from models.article import _escape_markdown
+
+        heading_line = (
+            f"*{_escape_markdown(heading)}*" if heading else ""
+        )
+        link_line = f"[Read full article]({link})" if link else ""
+
+        if heading_line:
+            parts = [heading_line]
+            if link_line:
+                parts.append(link_line)
+            return "\n".join(parts)
+        # Fallback: original text minus any previously-spliced summary.
+        if original_text:
+            lines = original_text.split("\n")
+            # Drop everything between the first non-empty line (heading)
+            # and the ``[Read full article]`` line.
+            trimmed: List[str] = []
+            kept_heading = False
+            for line in lines:
+                if not kept_heading and line.strip():
+                    trimmed.append(line)
+                    kept_heading = True
+                    continue
+                if "[Read full article]" in line:
+                    trimmed.append(line)
+                    # Continue so any trailing blank lines are stripped.
+                    continue
+                if kept_heading and line.strip() and "[Read full article]" not in line:
+                    # This is part of the previously-spliced summary — drop it.
+                    continue
+                if not line.strip():
+                    continue
+            if link_line and not any("[Read full article]" in x for x in trimmed):
+                trimmed.append(link_line)
+            if trimmed:
+                return "\n".join(trimmed)
+        return original_text or ""

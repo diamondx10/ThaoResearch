@@ -16,10 +16,12 @@ import shutil
 from pathlib import Path
 from typing import List, Tuple
 
+from utils.paths import APP_ROOT
+
 logger = logging.getLogger("thaoresearch.utils.clear_cache")
 
-DATA_DIR = Path("data")
-LOGS_DIR = Path("logs")
+DATA_DIR = APP_ROOT / "data"
+LOGS_DIR = APP_ROOT / "logs"
 
 
 def _safe_remove(p: Path) -> bool:

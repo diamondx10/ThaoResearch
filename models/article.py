@@ -70,19 +70,32 @@ class Article:
 
         return "\n".join(lines)
 
-    def to_telegram_reply_markup(self):
+    def to_telegram_reply_markup(self, expanded: bool = False):
         """Inline keyboard for the Telegram message.
 
-        Default = hidden summary. User taps `Summary` to view the snippet
-        on demand.
+        By default the button label is ``Summary ▼`` — tapping it expands
+        the message inline (no reload, no extra round trip) and swaps the
+        label to ``Summary ▲``.
+
+        When ``expanded=True`` the caller is rendering the post-expand
+        view and we label the button ``Summary ▲`` so the user can
+        collapse the message back down.
+
+        ``callback_data`` must be <= 64 bytes. We prefix the action so
+        the bot dispatcher can branch on ``sum:`` vs ``hide:`` and
+        include the article hash so we can look the row up if needed.
         """
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-        # callback_data must be <= 64 bytes. Prefix with the action and
-        # include the article hash so we can look the row up if needed.
         h = self.compute_hash()
+        if expanded:
+            label = "Summary ▲"
+            callback = f"hide:{h}"
+        else:
+            label = "Summary ▼"
+            callback = f"sum:{h}"
         return InlineKeyboardMarkup(
-            [[InlineKeyboardButton("Summary", callback_data=f"sum:{h}")]]
+            [[InlineKeyboardButton(label, callback_data=callback)]]
         )
 
     def to_telegram_summary_text(self) -> str:
@@ -95,33 +108,33 @@ class Article:
     # Windows toast
     # ------------------------------------------------------------------
     def to_toast_title(self) -> str:
-        """Window-toast title — mirrors the Telegram heading line.
+        """Window-toast title — shows ONLY the commodity name + article title.
 
         Telegram format: ``*[Commodity]*(Urgent) — Title``
 
         The toast title has fewer characters than a Telegram message and
         has no Markdown — we render it as plain text without the asterisks.
+        We keep just two pieces of info as the user requested:
+            1. The commodity name (e.g. "Soybean Oil", "Gold")
+            2. The article title
+        User opens the tool to read the full article.
         """
-        commodity = self.triggered_commodity or self.source or "News"
+        commodity = self.triggered_commodity or (
+            self.commodity_tags[0] if self.commodity_tags else None
+        ) or self.source or "News"
         if self.is_urgent:
             return f"{commodity} (Urgent) — {self.title}"
         return f"{commodity} — {self.title}"
 
     def to_toast_body(self) -> str:
-        """Window-toast body — mirrors the Telegram message body line
-        so the user sees the same content on both channels.
+        """Window-toast body — intentionally empty.
 
-        Telegram format::
-
-            *[Commodity]* — [Title]
-            Read full article (link)
-
-        Toast body is rendered without Markdown and capped to one extra
-        line for the link prompt.
+        Per UX request the toast shows ONLY commodity + title in the title
+        line. The user opens the tool (or clicks the toast) to read the
+        full article. Keeping the body empty avoids dumping the URL into
+        the notification banner.
         """
-        if self.link:
-            return f"Read full article: {self.link}"
-        return "Read full article"
+        return ""
 
     def to_short_summary(self) -> str:
         """Return one-line short summary for console logging."""

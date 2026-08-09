@@ -155,5 +155,7 @@
   "main.btn_clear_cache": "Xoá cache",
   "main.btn_clear_log": "Xoá nhật ký",
   "main.btn_refresh": "Làm mới",
-  "main.log_label": "Nhật ký gần đây (logs/app.log)"
+  "main.log_label": "Nhật ký gần đây (logs/app.log)",
+  "main.exit_title": "Thoát ThaoResearch?",
+  "main.exit_confirm": "Hành động này sẽ dừng scheduler và cảnh báo Telegram. Tiếp tục?"
 }

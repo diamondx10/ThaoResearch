@@ -14,7 +14,9 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
-LOG_DIR = Path("logs")
+from utils.paths import APP_ROOT
+
+LOG_DIR = APP_ROOT / "logs"
 LOG_FILE = LOG_DIR / "app.log"
 MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 BACKUP_COUNT = 5

@@ -233,6 +233,97 @@ python main.py --now
 
 # Run as a background daemon
 python main.py --daemon
+
+7.5. Settings Persistence (`init_config.yaml`) — autosave + auto-load
+
+Every change in the Settings window is autosaved 500 ms after the last keystroke / toggle, and the result is reloaded automatically on the next launch. No need to click **Save** unless you want to force-flush immediately.
+
+**Files**
+
+| File | Role |
+|---|---|
+| `config.yaml` | The "source of truth" shipped with the repo / your initial bootstrap. Read-only after first run. |
+| `init_config.yaml` | The autosave target — every GUI edit lands here. **Preferred on next launch.** |
+| `data/license.dat` | License activation blob (separate file, unrelated to config). |
+
+**Load order at startup**
+
+1. `--config <path>` (CLI override) — wins over everything.
+2. `init_config.yaml` next to the .exe (or in CWD, or up to 3 levels above `dist/` for frozen builds) — used **if it exists**.
+3. `config.yaml` — fallback for first launch / fresh install.
+
+**Where the file lives**
+
+The autosave target is **always co-located with `config.yaml`** so the two never drift. For a frozen build, that's the project root (one level above `dist\`). For a dev install, it's wherever you launched the app.
+
+**Manual Save vs Autosave**
+
+- **Autosave** (default ON) — every widget change writes to `init_config.yaml` after 500 ms of inactivity. Cancels itself on each new change so the user sees the file written exactly once per "burst" of edits.
+- **Manual Save** — same `init_config.yaml`, but the button flushes immediately and shows a "Settings saved." confirmation. Useful when you've finished editing and want to verify on disk.
+- **Cancel** — flushes any pending autosave first, then closes the dialog.
+
+**Toggling it off**
+
+In **Settings → General** you'll see:
+
+```
+☑ Autosave settings (init_config.yaml)
+```
+
+Untick it and the file stops being written automatically. Manual Save still works. Useful if you're editing `config.yaml` by hand and don't want the GUI to clobber your changes mid-run.
+
+**What gets persisted**
+
+Everything the Settings window exposes: timezone, language, scheduler mode + adaptive windows, watchlist (sources, commodities), filters (high-priority + blacklist keywords, delta alert), Telegram + desktop notification toggles, **force-send-duplicates**, **autosave-settings** itself, and the new license key (via the Submit button — separate code path).
+
+What **does not** get persisted in `init_config.yaml`: Telegram token + chat ID (they live in `.env` for security), the `.dat` license blob, the `data/history.db` SQLite dedup table.
+
+**Reset to factory**
+
+If `init_config.yaml` ever gets corrupted or you want to start fresh, just delete it — the app falls back to `config.yaml` on the next launch:
+
+```powershell
+# Wipe autosaved state and re-bootstrap from the shipped defaults
+Remove-Item C:\Unillog\ThaoResearch\init_config.yaml
+C:\Unillog\ThaoResearch\dist\ThaoResearch.exe
+```
+
+7.6. Exiting the App — full shutdown, not "hide to tray"
+
+The **Close** button (status bar bottom-right) and the window's **X** button both perform a **full shutdown** — the scheduler stops, the Telegram notifier closes its async loop, the tray icon disappears, and the process exits. To confirm the action, the dialog asks:
+
+> *Exit ThaoResearch? This will stop the scheduler and Telegram alerts. Continue?*
+
+Choose **Yes** to fully exit, **No** to return to the dashboard.
+
+This matches the **tray menu's "Exit" item** — three entry points, identical behaviour.
+
+**What gets torn down on Exit**
+
+| Component | Action |
+|---|---|
+| APScheduler (background cron) | `scheduler.shutdown(wait=False)` — cancels any in-flight job |
+| Telegram bot | `notifier.telegram.shutdown()` — closes the asyncio loop, kills the polling thread |
+| System tray icon | `tray.stop()` — icon disappears from the notification area |
+| Tk main window | `window.destroy()` — mainloop returns |
+| Fetch Now worker thread | Daemon thread, dies with the process |
+
+**Files persisted on Exit**
+
+- `init_config.yaml` (autosave) — anything you edited in the last 500 ms is already on disk.
+- `data/history.db` — every dedup record from the session is already committed (writes are synchronous).
+- `data/license.dat` — license activation blob (untouched by Exit).
+- `.env` — Telegram credentials (untouched).
+
+**Files NOT persisted**
+
+- Dashboard counters / recent-articles list / log tail — these are in-memory only.
+- Running job progress — `Fetch complete` / `Fetch failed` labels disappear with the window.
+
+**If the dialog doesn't appear**
+
+On rare occasions the message-box can fail (window already destroyed, focus loss on multi-monitor setups). The fallback path calls `on_exit()` directly without confirmation, so the app still exits cleanly.
+
 8. Telegram Bot Setup (BotFather)
 Open Telegram and search for @BotFather.
 
@@ -467,4 +558,80 @@ License info
 Conclusion
 This document serves as the complete blueprint for developing ThaoResearch. The AI Agent is expected to deliver a fully functional, modular, and well-documented Python application that meets all the specified criteria for market news analysis and alerting.
 
+---
+
+## 13. Build commands (cheat sheet)
+
+Two one-shot commands to produce a release build. Run them from the project root (`C:\Unillog\ThaoResearch`) in **PowerShell**.
+
+### 13.1 Build the standalone EXE only
+
+Produces `dist\ThaoResearch.exe` (single-file PyInstaller bundle, ~36 MB). Skips the Inno Setup installer so the build finishes in 1-3 minutes.
+
+```powershell
+taskkill /F /IM ThaoResearch.exe 2>$null; Remove-Item -Recurse -Force build, dist, installer_output -ErrorAction SilentlyContinue; py -m PyInstaller --noconfirm --clean ThaoResearch.spec
+```
+
+Expected tail:
+
+```text
+Appending archive to EXE C:\Unillog\ThaoResearch\dist\ThaoResearch.exe
+Building EXE from EXE-00.toc completed successfully.
+```
+
+Result: `C:\Unillog\ThaoResearch\dist\ThaoResearch.exe`
+
+### 13.2 Build the EXE + Windows installer
+
+Requires [Inno Setup 6](https://jrsoftware.org/isdl.php) installed (the script auto-detects it at `C:\Program Files\Inno Setup 6\ISCC.exe` or `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`). Produces both the EXE and the customer-facing installer.
+
+```powershell
+cmd.exe /c build_release.bat
+```
+
+Expected tail:
+
+```text
+ Successful compile (3.8xx sec). Resulting Setup program filename is:
+ C:\Unillog\ThaoResearch\installer_output\ThaoResearch-Setup-1.0.0.exe
+
+ ============================================================
+  Release build complete.
+ ============================================================
+
+  Artifacts:
+    dist\ThaoResearch.exe
+    installer_output\ThaoResearch-Setup-1.0.0.exe
+```
+
+Result: `C:\Unillog\ThaoResearch\installer_output\ThaoResearch-Setup-1.0.0.exe` (~37 MB) — hand this file to the customer.
+
+> **Tip:** to build the installer without also running Inno Setup, pass `/skip-installer`:
+> ```powershell
+> cmd.exe /c build_release.bat /skip-installer
+> ```
+
+
+Note:
+
+Build EXE (chỉ PyInstaller, ~36 MB, 1-3 phút):
+taskkill /F /IM ThaoResearch.exe 2>$null; Remove-Item -Recurse -Force build, dist, installer_output -ErrorAction SilentlyContinue; py -m PyInstaller --noconfirm --clean ThaoResearch.spec
+
+Build EXE + Installer (~37 MB, ~50 giây sau khi EXE xong):
+cmd.exe /c build_release.bat
+
+
 --- END OF README.md ---
+
+PS C:\Unillog\ThaoResearch> python license_generator.py 20261029
+f1c92532eef6291e
+PS C:\Unillog\ThaoResearch> python license_generator.py 20261029
+3dc22ba3099cc11363bec5f380ec3baa
+PS C:\Unillog\ThaoResearch> python license_generator.py 20261029
+3dc22ba3099cc11363bec5f380ec3baa
+PS C:\Unillog\ThaoResearch> python license_generator.py 20261201
+8280e5b347cda80cfccb363e33e56693
+PS C:\Unillog\ThaoResearch> python license_generator.py 20260101
+3893c0b963ade8ff502b8270969a7d8d
+PS C:\Unillog\ThaoResearch> python license_generator.py 20261201
+8280e5b347cda80cfccb363e33e56693

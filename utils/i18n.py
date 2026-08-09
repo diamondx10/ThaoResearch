@@ -9,6 +9,8 @@ import threading
 from pathlib import Path
 from typing import Dict, Optional
 
+from utils.paths import APP_ROOT
+
 logger = logging.getLogger("thaoresearch.utils.i18n")
 
 DEFAULT_LANG = "en"
@@ -25,7 +27,8 @@ def _resolve_locale_dir() -> Path:
     Search order:
       1. PyInstaller _MEIPASS/locales (the bundle dir for --onefile).
       2. Next to sys.executable/locales (frozen onedir layout).
-      3. CWD/locales (dev mode).
+      3. APP_ROOT/locales (portable install layout — main install dir).
+      4. CWD/locales (dev mode).
     """
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
@@ -40,6 +43,8 @@ def _resolve_locale_dir() -> Path:
                 return cand
     except Exception:
         pass
+    if (APP_ROOT / "locales").exists():
+        return APP_ROOT / "locales"
     return Path("locales")
 
 

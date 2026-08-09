@@ -45,6 +45,7 @@ class MainWindow:
         on_clear_cache: Optional[Callable[[], list]] = None,
         on_open_article: Optional[Callable[[object], None]] = None,
         on_config_saved: Optional[Callable[[dict], None]] = None,
+        on_exit: Optional[Callable[[], None]] = None,
         scheduler: Optional[Any] = None,
         job_id: str = "main_job",
     ):
@@ -56,6 +57,13 @@ class MainWindow:
         self.on_clear_cache = on_clear_cache
         self.on_open_article = on_open_article
         self.on_config_saved = on_config_saved
+        # ``on_exit`` is the host callback that does a full shutdown —
+        # scheduler, telegram notifier, tray, and the Tk mainloop. When
+        # the user clicks the X button or the in-window "Close" button,
+        # we prompt for confirmation and then call this. Without it,
+        # ``_on_close`` falls back to the legacy "hide to tray" behaviour
+        # so embedded/test contexts (no host shutdown wired) don't break.
+        self.on_exit = on_exit
         # scheduler + job_id are used to render the "Next run in" countdown
         self.scheduler = scheduler
         self.job_id = job_id
@@ -390,8 +398,16 @@ class MainWindow:
         #   * Filter combobox → All / Unread / Read
         #   * Buttons        → mark all read / unread, clear list
 
-        # Resizable container: top = log tail (fill), bottom = articles pane.
-        # tk.PanedWindow lets the user drag the divider to resize the panes.
+        # Resizable container: top = log tail (small, manual resize), bottom = recent
+        # articles pane (takes most of the space). The user can drag the
+        # sash to grow the log pane when investigating an issue; by
+        # default the log pane is short (100px) and the recent-articles
+        # pane expands to fill the rest of the dashboard.
+        #
+        # ``stretch="always"`` on the recent-articles pane makes the
+        # auto-shrink work in the user's favour: when the dashboard
+        # shrinks, the log pane shrinks first (since it has no stretch),
+        # so the recent-articles list keeps showing new rows.
         self._dashboard_panes = tk.PanedWindow(
             outer, orient="vertical", sashwidth=6, sashrelief="raised",
             opaqueresize=True, bd=0,
@@ -399,8 +415,11 @@ class MainWindow:
         self._dashboard_panes.pack(fill="both", expand=True)
 
         # --- Top pane: log tail (already built above) -------------------------
+        # stretch="never" so this pane never auto-grows; the user has to
+        # drag the sash to expand it. ``minsize=60`` keeps the log scrollable
+        # but doesn't reserve huge vertical space by default.
         log_holder = ttk.Frame(self._dashboard_panes)
-        self._dashboard_panes.add(log_holder, stretch="always", minsize=80)
+        self._dashboard_panes.add(log_holder, stretch="never", minsize=60)
         log_holder_inner = ttk.Frame(log_holder)
         log_holder_inner.pack(fill="both", expand=True)
         # Re-parent the existing log_text + scrollbar into log_holder_inner.
@@ -409,7 +428,7 @@ class MainWindow:
         old_log_text = self.log_text
         old_log_vsb = log_vsb
         self.log_text = tk.Text(
-            log_holder_inner, height=10, wrap="none", font=("Consolas", 9),
+            log_holder_inner, height=4, wrap="none", font=("Consolas", 9),
         )
         self.log_text.configure(state="disabled")
         self.log_text.pack(in_=log_holder_inner, side="left", fill="both", expand=True)
@@ -428,8 +447,11 @@ class MainWindow:
             pass
 
         # --- Bottom pane: recent articles ------------------------------------
+        # stretch="always" so it consumes the remaining vertical space. The
+        # sash (6px) sits just above this pane by default; users can drag
+        # it down to grow the log tail.
         art_holder = ttk.Frame(self._dashboard_panes)
-        self._dashboard_panes.add(art_holder, stretch="never", minsize=140)
+        self._dashboard_panes.add(art_holder, stretch="always", minsize=160)
         art_holder_inner = ttk.Frame(art_holder)
         art_holder_inner.pack(fill="both", expand=True)
 
@@ -472,6 +494,8 @@ class MainWindow:
         ).pack(side="left", padx=2)
 
         # Treeview — supports per-row font weights via tags, multi-column.
+        # ``height=12`` makes the visible list comfortable; the user can
+        # still scroll within the pane.
         tree_frame = ttk.Frame(art_holder_inner)
         tree_frame.pack(fill="both", expand=True)
         self.articles_tree = ttk.Treeview(
@@ -479,7 +503,7 @@ class MainWindow:
             columns=("status", "commodity", "title"),
             show="headings",
             selectmode="browse",
-            height=8,
+            height=12,
         )
         self.articles_tree.heading("status", text="")
         self.articles_tree.heading("commodity", text="Commodity")
@@ -533,7 +557,38 @@ class MainWindow:
         except Exception as e:
             logger.debug("gui_queue subscribe failed: %s", e)
 
+        # Position the PanedWindow sash so the log tail is small (120px) by
+        # default and the recent-articles pane gets the remaining space.
+        # We schedule this via ``after`` because Tk needs the window to be
+        # fully realized before ``panepos`` will accept a coordinate.
+        try:
+            self.window.after(50, self._position_dashboard_sash)
+        except tk.TclError:
+            pass
+
     # ----------------------------------------------------------- Recent Articles API
+    def _position_dashboard_sash(self):
+        """Place the PanedWindow sash so the log tail is ~120px tall.
+
+        Called via ``after(50)`` after build so Tk has finished realizing
+        the widgets. If the user has already dragged the sash, their
+        position is preserved by the PanedWindow itself (it remembers the
+        sash position across ``after`` callbacks). We only set the
+        position when the current sash offset is the default one
+        (== ``0``) so we don't fight the user.
+        """
+        try:
+            if not hasattr(self, "_dashboard_panes"):
+                return
+            # ``panepos`` accepts either an integer index (pane number) or
+            # the literal pixel height of pane #0 (the log tail).
+            # We want the log pane to be ~120px tall.
+            current = self._dashboard_panes.paneposget(0)
+            if not current:
+                self._dashboard_panes.paneposset(0, 120)
+        except tk.TclError:
+            pass
+
     def _article_key(self, article) -> str:
         """Stable identifier for an article — used to track read state."""
         try:
@@ -1252,11 +1307,76 @@ class MainWindow:
         )
 
     def _on_close(self):
-        # Hide instead of destroying so tray can re-show it.
+        """X button (window decoration) and the in-window Close button both
+        land here. We delegate to ``_request_exit`` so the user sees the
+        same confirmation dialog regardless of which they clicked.
+
+        If no ``on_exit`` host callback is wired (e.g. unit tests, embedded
+        usage), fall back to the legacy "hide to tray" behaviour — that
+        way the GUI can still be programmatically closed without tearing
+        the host down.
+        """
+        if self.on_exit is None:
+            try:
+                self.window.withdraw()
+            except tk.TclError:
+                pass
+            return
+        self._request_exit()
+
+    def _request_exit(self):
+        """Full shutdown: confirm with the user, then call ``self.on_exit``.
+
+        The host callback is responsible for shutting down the scheduler,
+        telegram notifier, tray, and the Tk mainloop. The dashboard /
+        log text will be discarded on destroy — anything persistent
+        (settings, history) is already on disk.
+
+        We post the dialog via ``self.window.after(0, ...)`` so it runs
+        on the Tk thread even if the call originated from another
+        thread (defensive — the X button is on the Tk thread already,
+        but a tray-driven shutdown might not be).
+        """
+        def _confirm_and_exit():
+            try:
+                ok = messagebox.askyesno(
+                    t("main.exit_title", default="Exit ThaoResearch?"),
+                    t(
+                        "main.exit_confirm",
+                        default=(
+                            "This will stop the scheduler and Telegram alerts. "
+                            "Continue?"
+                        ),
+                    ),
+                    parent=self.window,
+                )
+            except Exception:
+                # If the dialog fails (e.g. window already destroyed),
+                # assume the user wanted to exit.
+                ok = True
+            if not ok:
+                return
+            try:
+                if self.on_exit is not None:
+                    self.on_exit()
+            except Exception as e:
+                logger.warning("on_exit callback failed: %s", e)
+            # Belt-and-suspenders: if the host didn't schedule a
+            # destroy, withdraw the window so the user sees feedback.
+            try:
+                self.window.withdraw()
+            except tk.TclError:
+                pass
+
         try:
-            self.window.withdraw()
+            self.window.after(0, _confirm_and_exit)
         except tk.TclError:
-            pass
+            # Window already gone — call the host anyway.
+            try:
+                if self.on_exit is not None:
+                    self.on_exit()
+            except Exception:
+                pass
 
     def show(self):
         """Run Tk mainloop on the current thread."""

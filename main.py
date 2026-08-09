@@ -40,6 +40,7 @@ from core.parser import normalize_pub_dates
 from core.telegram_bot import TelegramNotifier, validate_chat_id, validate_token
 from models.article import Article
 from utils import autostart, database, i18n, license as license_mod, price_tracker
+from utils.paths import APP_ROOT, DATA_DIR, ENV_FILE, resolve_user_path
 from utils.errors import (
     EmptyChatIdError,
     EmptyTokenError,
@@ -478,9 +479,24 @@ def run_daemon(args, config: dict, env: dict, notifier: Notifier):
         gui_queue.put(("show_settings", (config, args.config, on_save_cb)))
 
     def exit_app():
-        gui_queue.put(("shutdown", None))
+        """Hard-stop every background subsystem. Called from the tray's
+        Exit menu and (in the GUI case) the MainWindow's X / Close
+        button via the ``on_exit`` callback. The dispatcher in
+        ``_dispatch`` reacts to the ``shutdown`` event by destroying the
+        Tk window; the ``finally`` block at the bottom of ``run_daemon``
+        runs the rest of the cleanup (scheduler / telegram / tray).
+        """
         try:
             scheduler.shutdown(wait=False)
+        except Exception:
+            pass
+        try:
+            if notifier and notifier.telegram:
+                notifier.telegram.shutdown()
+        except Exception:
+            pass
+        try:
+            gui_queue.put(("shutdown", None))
         except Exception:
             pass
 
@@ -655,9 +671,24 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
         gui_queue.put(("show_settings", (config, args.config, on_save_cb)))
 
     def exit_app():
-        gui_queue.put(("shutdown", None))
+        """Hard-stop every background subsystem. Called from the tray's
+        Exit menu and (in the GUI case) the MainWindow's X / Close
+        button via the ``on_exit`` callback. The dispatcher in
+        ``_dispatch`` reacts to the ``shutdown`` event by destroying the
+        Tk window; the ``finally`` block at the bottom of ``run_daemon``
+        runs the rest of the cleanup (scheduler / telegram / tray).
+        """
         try:
             scheduler.shutdown(wait=False)
+        except Exception:
+            pass
+        try:
+            if notifier and notifier.telegram:
+                notifier.telegram.shutdown()
+        except Exception:
+            pass
+        try:
+            gui_queue.put(("shutdown", None))
         except Exception:
             pass
 
@@ -763,6 +794,12 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
         on_clear_cache=clear_cache,
         on_open_article=open_article,
         on_config_saved=config_saved,
+        # ``on_exit`` does the full shutdown — clicking the X button or
+        # the in-window Close button now tears everything down instead
+        # of just hiding. The tray's "Exit" menu and this callback
+        # share the same code path (see ``exit_app`` above), so the
+        # user gets identical behaviour from both entry points.
+        on_exit=exit_app,
         scheduler=scheduler,
         job_id="main_job",
     )
@@ -1058,6 +1095,24 @@ def _resolve_config_path(user_path: Path) -> Path:
 
 def main(argv=None) -> int:
     args = parse_args(argv)
+
+    # When running as a portable frozen install, all data must live next to
+    # the EXE (so users can copy the install folder around). Any code that
+    # still uses a bare ``Path("data/...")`` or ``Path("logs/...")`` will be
+    # correct *only* if the process's cwd == APP_ROOT. Force that here.
+    if getattr(sys, "frozen", False):
+        try:
+            os.chdir(str(APP_ROOT))
+        except Exception:
+            pass
+    else:
+        # Dev mode: also chdir to APP_ROOT so ``Path("data/...")`` matches
+        # the bundled tests, but only if we are NOT already in the project
+        # root (avoid surprising users who cd elsewhere and run --test-x).
+        try:
+            os.chdir(str(APP_ROOT))
+        except Exception:
+            pass
 
     # Windows: set AppUserModelID so the taskbar shows the right icon + name
     # instead of the generic Python icon (the PyInstaller --icon flag only sets

@@ -10,9 +10,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
 
+from utils.paths import DATA_DIR
+
 logger = logging.getLogger("thaoresearch.utils.price_tracker")
 
-DB_DIR = Path("data")
+DB_DIR = DATA_DIR
 DB_PATH = DB_DIR / "prices.db"
 MAX_HISTORY = 30
 

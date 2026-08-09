@@ -150,10 +150,9 @@ class ArticleViewer:
         )
         title_label.pack(fill="x", pady=(0, 8))
 
-        # Scrollable Text widget for the full article body. We start with the
-        # RSS summary so the user sees something immediately, then replace it
-        # with the fetched full content when the background HTTP request
-        # completes.
+        # Scrollable Text widget for the article body. Per UX request we
+        # show ONLY the short RSS summary (no async full-content fetch).
+        # The "Open in browser" button is the way to read the whole article.
         text_frame = ttk.Frame(body_frame)
         text_frame.pack(fill="both", expand=True)
         self._body_text = tk.Text(
@@ -178,27 +177,20 @@ class ArticleViewer:
         # Disable editing but allow selection + copy.
         self._body_text.configure(state="disabled")
 
-        initial_body = (self.article.summary or "").strip()
-        if not initial_body:
-            initial_body = t(
-                "viewer.loading_content",
-                default="Đang tải nội dung bài báo…",
+        summary = (self.article.summary or "").strip()
+        if summary:
+            self._set_body_text(summary)
+        else:
+            self._set_body_text(
+                t(
+                    "viewer.no_summary",
+                    default="(No summary available for this article. Bấm 'Open in browser' để mở bài gốc.)",
+                )
             )
-        self._set_body_text(initial_body)
 
-        # Asynchronously fetch the full article body so the user can read the
-        # whole page inline (instead of just the short RSS description).
-        # Falls back to the existing summary if the fetch fails. We schedule
-        # the fetch via ``after`` so it only fires once Tk is in its main
-        # loop — otherwise the worker thread can't marshal results back via
-        # ``window.after(0, ...)``.
+        # Mark that no full-content fetch will be kicked off so the legacy
+        # _start_full_content_fetch / _poll_content_queue handlers are no-ops.
         self._fetch_in_flight = False
-        if self.article.link:
-            try:
-                self.window.after(150, self._start_full_content_fetch)
-            except tk.TclError:
-                # Window destroyed already — skip silently.
-                pass
 
         ttk.Separator(body_frame, orient="horizontal").pack(fill="x", pady=(8, 4))
 

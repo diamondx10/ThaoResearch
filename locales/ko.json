@@ -155,5 +155,7 @@
   "main.btn_clear_cache": "캐시 삭제",
   "main.btn_clear_log": "로그 지우기",
   "main.btn_refresh": "새로 고침",
-  "main.log_label": "최근 로그 (logs/app.log)"
+  "main.log_label": "최근 로그 (logs/app.log)",
+  "main.exit_title": "ThaoResearch 종료?",
+  "main.exit_confirm": "예약 작업과 텔레그램 알림이 중지됩니다. 계속하시겠습니까?"
 }
