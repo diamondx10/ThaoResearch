@@ -13,18 +13,49 @@ from utils.paths import DATA_DIR
 DB_DIR = DATA_DIR
 DB_PATH = DB_DIR / "history.db"
 
-_local = threading.local()
+# Registry of all open connections keyed by ``threading.get_ident()``.
+# Using a plain dict + lock (instead of ``threading.local``) so that
+# ``close_all_connections()`` can close every connection from any thread —
+# important for ``Clear Cache``, where the GUI thread needs to close the
+# scheduler thread's connection before unlinking the SQLite file on
+# Windows (which locks open files).
+_lock = threading.Lock()
+_connections: dict = {}  # thread_id (int) -> sqlite3.Connection
 
 
 def _get_connection() -> sqlite3.Connection:
-    """Return thread-local connection (one per thread)."""
-    conn = getattr(_local, "conn", None)
+    """Return a connection for the current thread (one per thread)."""
+    tid = threading.get_ident()
+    conn = _connections.get(tid)
     if conn is None:
         DB_DIR.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(DB_PATH), timeout=10)
         conn.row_factory = sqlite3.Row
-        _local.conn = conn
+        with _lock:
+            _connections[tid] = conn
     return conn
+
+
+def close_all_connections() -> int:
+    """Close every open connection in every thread. Returns count closed.
+
+    Call before deleting the SQLite file so Windows lets us unlink it.
+    """
+    with _lock:
+        items = list(_connections.items())
+        _connections.clear()
+    closed = 0
+    for tid, conn in items:
+        try:
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.close()
+            closed += 1
+        except Exception:
+            pass
+    return closed
 
 
 @contextmanager

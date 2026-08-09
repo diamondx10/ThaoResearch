@@ -40,6 +40,19 @@ from core.parser import normalize_pub_dates
 from core.telegram_bot import TelegramNotifier, validate_chat_id, validate_token
 from models.article import Article
 from utils import autostart, database, i18n, license as license_mod, price_tracker
+
+# Module-level state shared between ``job_execute`` (which runs on the
+# scheduler thread) and ``clear_cache`` (which runs on the GUI thread).
+# ``_job_state["running"]`` flips True when a job starts and False when
+# it finishes; ``clear_cache`` polls it and waits up to ``_job_state["timeout_s"]``
+# seconds for the current job to drain before unlinking the SQLite
+# files (which would fail on Windows while the job holds them open).
+_job_state = {
+    "running": False,
+    "started_at": 0.0,
+    "last_finished_at": 0.0,
+    "timeout_s": 120.0,  # worst-case crawl + filter pipeline
+}
 from utils.paths import APP_ROOT, DATA_DIR, ENV_FILE, resolve_user_path
 from utils.errors import (
     EmptyChatIdError,
@@ -196,6 +209,12 @@ def job_execute(config: dict, notifier: Notifier, dry_run: bool, logger_: loggin
         "failures": [],
         "duration_s": 0.0,
     }
+    # Clear-cache coordination: set ``_job_running=True`` while we're
+    # holding SQLite connections open. ``clear_cache()`` polls this flag
+    # and waits for it to flip back to False before unlinking the DB
+    # files (which would fail on Windows while we hold them open).
+    _job_state["running"] = True
+    _job_state["started_at"] = time.time()
     t0 = time.time()
 
     print()
@@ -230,6 +249,8 @@ def job_execute(config: dict, notifier: Notifier, dry_run: bool, logger_: loggin
     if not all_articles:
         print("No articles crawled.")
         stats["duration_s"] = time.time() - t0
+        _job_state["running"] = False
+        _job_state["last_finished_at"] = time.time()
         return stats
 
     # Localize dates
@@ -242,6 +263,8 @@ def job_execute(config: dict, notifier: Notifier, dry_run: bool, logger_: loggin
     if not matched:
         print("No articles match the filter.")
         stats["duration_s"] = time.time() - t0
+        _job_state["running"] = False
+        _job_state["last_finished_at"] = time.time()
         return stats
 
     print(f"\nFiltered to {len(matched)} relevant articles\n")
@@ -290,6 +313,8 @@ def job_execute(config: dict, notifier: Notifier, dry_run: bool, logger_: loggin
         gui_queue.put(("fetch_done", stats))
     except Exception:
         pass
+    _job_state["running"] = False
+    _job_state["last_finished_at"] = time.time()
     return stats
 
 
@@ -638,20 +663,78 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
             raise
 
     def clear_cache():
-        """Wipe local data/history.db, data/prices.db, logs/*."""
-        from utils.clear_cache import clear_local_data
+        """Wipe local data/history.db, data/prices.db, logs/*.
 
-        results = clear_local_data()
-        for path, status in results:
-            logger_.info("Clear cache: %s -> %s", path, status)
-        # Re-initialize the price DB so the next fetch can write to it
+        We pause the scheduler and wait for any in-flight ``job_execute``
+        to finish (signalled via ``_job_state["running"]``) before we
+        touch the SQLite files. On Windows an open SQLite file is
+        locked at the OS level — even ``close_all_connections()``
+        can't unlink the file if another thread keeps opening fresh
+        connections inside its job loop.
+
+        The BackgroundScheduler uses a ThreadPoolExecutor whose worker
+        threads are kept alive *indefinitely* (they sleep waiting for
+        the next job). Counting alive threads is therefore useless —
+        it always reports ``>0``. The reliable signal is the flag we
+        set at the top of ``job_execute`` and clear at the bottom.
+
+        Resume on the way out so the loop picks up at the next interval.
+        """
+        # Pause the scheduler so no NEW job_execute fires.
+        was_running = False
         try:
-            price_tracker.init_db()
+            from apscheduler.schedulers.base import STATE_RUNNING
+            was_running = scheduler.state == STATE_RUNNING
+            if was_running:
+                try:
+                    scheduler.pause()
+                    logger_.info("Clear cache: scheduler paused")
+                except Exception as e:
+                    logger_.warning("Clear cache: pause failed: %s", e)
+        except Exception:
+            pass
+
+        # Wait for the currently-running job (if any) to release its
+        # SQLite connections. ``_job_state["running"]`` is set at the
+        # top of ``job_execute`` and cleared at the bottom (and at every
+        # early-return path), so polling it is reliable.
+        try:
+            import time as _time
+            deadline = _time.time() + float(_job_state.get("timeout_s", 120))
+            while _job_state.get("running") and _time.time() < deadline:
+                logger_.info("Clear cache: waiting for in-flight job to finish...")
+                _time.sleep(0.25)
+            if _job_state.get("running"):
+                logger_.warning(
+                    "Clear cache: job still running after %s s — proceeding anyway",
+                    _job_state.get("timeout_s", 120),
+                )
+            else:
+                logger_.info("Clear cache: scheduler thread is idle")
         except Exception as e:
-            logger_.warning("price_tracker.init_db after clear failed: %s", e)
-        # Refresh counters
-        gui_queue.put(("status", None))
-        return results
+            logger_.debug("Clear cache: drain wait skipped: %s", e)
+
+        try:
+            from utils.clear_cache import clear_local_data
+
+            results = clear_local_data()
+            for path, status in results:
+                logger_.info("Clear cache: %s -> %s", path, status)
+            # Re-initialize the price DB so the next fetch can write to it
+            try:
+                price_tracker.init_db()
+            except Exception as e:
+                logger_.warning("price_tracker.init_db after clear failed: %s", e)
+            # Refresh counters
+            gui_queue.put(("status", None))
+            return results
+        finally:
+            if was_running:
+                try:
+                    scheduler.resume()
+                    logger_.info("Clear cache: scheduler resumed")
+                except Exception as e:
+                    logger_.warning("Clear cache: resume failed: %s", e)
 
     def show_history():
         gui_queue.put(("show_history", None))
