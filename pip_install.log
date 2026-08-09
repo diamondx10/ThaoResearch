@@ -1,0 +1,15 @@
+﻿Collecting win10toast
+  Downloading win10toast-0.9-py2.py3-none-any.whl.metadata (2.1 kB)
+Collecting plyer
+  Downloading plyer-2.1.0-py2.py3-none-any.whl.metadata (61 kB)
+Collecting pypiwin32 (from win10toast)
+  Downloading pypiwin32-223-py3-none-any.whl.metadata (236 bytes)
+Requirement already satisfied: setuptools in C:\Users\nmphu\AppData\Local\Programs\Python\Python312\Lib\site-packages (from win10toast) (83.0.0)
+Requirement already satisfied: pywin32>=223 in C:\Users\nmphu\AppData\Local\Programs\Python\Python312\Lib\site-packages (from pypiwin32->win10toast) (306)
+Downloading win10toast-0.9-py2.py3-none-any.whl (21 kB)
+Downloading plyer-2.1.0-py2.py3-none-any.whl (142 kB)
+Downloading pypiwin32-223-py3-none-any.whl (1.7 kB)
+Installing collected packages: plyer, pypiwin32, win10toast
+
+
+Successfully installed plyer-2.1.0 pypiwin32-223 win10toast-0.9

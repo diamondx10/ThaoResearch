@@ -1,0 +1,294 @@
+﻿python : 128 INFO: PyInstaller: 6.22.0, contrib hooks: 2026.6
+At C:\Users\nmphu\AppData\Local\Temp\ps-script-9667e050-288d-46c1-a576-e75d5062b21d.ps1:86 char:448
++ ... e.dat -ErrorAction SilentlyContinue; python build_exe.py 2>&1 | Out-F ...
++                                          ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (128 INFO: PyIns...b hooks: 2026.6:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+128 INFO: Python: 3.12.10
+160 INFO: Platform: Windows-11-10.0.26200-SP0
+160 INFO: Python environment: C:\Users\nmphu\AppData\Local\Programs\Python\Python312
+161 INFO: wrote C:\Unillog\ThaoResearch\ThaoResearch.spec
+1581 INFO: Module search paths (PYTHONPATH):
+['C:\\Unillog\\ThaoResearch',
+ 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\python312.zip',
+ 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\DLLs',
+ 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib',
+ 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312',
+ 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages',
+ 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\win32',
+ 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\win32\\lib',
+ 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\Pythonwin',
+ 'C:\\Unillog\\ThaoResearch']
+1863 INFO: Appending 'datas' from .spec
+1867 INFO: checking Analysis
+1867 INFO: Building Analysis because Analysis-00.toc is non existent
+1867 INFO: Looking for Python shared library...
+1867 INFO: Using Python shared library: C:\Users\nmphu\AppData\Local\Programs\Python\Python312\python312.dll
+1867 INFO: Running Analysis Analysis-00.toc
+1867 INFO: Target bytecode optimization level: 0
+1867 INFO: Initializing module dependency graph...
+1868 INFO: Initializing module graph hook caches...
+1878 INFO: Analyzing modules for base_library.zip ...
+2924 INFO: Processing standard module hook 'hook-encodings.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+3291 INFO: Processing standard module hook 'hook-math.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+4112 INFO: Processing standard module hook 'hook-pickle.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+4831 INFO: Processing standard module hook 'hook-heapq.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+5209 INFO: Caching module dependency graph...
+5240 INFO: Analyzing C:\Unillog\ThaoResearch\main.py
+5274 INFO: Processing pre-find-module-path hook 'hook-tkinter.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Pyt
+hon\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+5275 INFO: TclTkInfo: initializing cached Tcl/Tk info...
+5540 INFO: Processing standard module hook 'hook-_tkinter.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+5695 INFO: Processing standard module hook 'hook-apscheduler.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Pyth
+on\\Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+6031 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'C:\\Users\\nmphu\\AppData\\Local\\
+Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+6032 INFO: SetuptoolsInfo: initializing cached setuptools info...
+6507 INFO: Setuptools: 'importlib_metadata' appears to be a setuptools-vendored copy - creating alias to 
+'setuptools._vendor.importlib_metadata'!
+6511 INFO: Processing standard module hook 'hook-setuptools.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+6542 INFO: Processing standard module hook 'hook-platform.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+6546 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\
+\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+6614 INFO: Processing standard module hook 'hook-sysconfig.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+6619 INFO: Processing pre-safe-import-module hook 'hook-jaraco.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Py
+thon\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+6620 INFO: Setuptools: 'jaraco' appears to be a full setuptools-vendored copy - creating alias to 
+'setuptools._vendor.jaraco'!
+6628 INFO: Processing pre-safe-import-module hook 'hook-more_itertools.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Prog
+rams\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+6629 INFO: Setuptools: 'more_itertools' appears to be a setuptools-vendored copy - creating alias to 
+'setuptools._vendor.more_itertools'!
+6743 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\Users\\nmphu\\AppData\\Local\\P
+rograms\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+7077 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+7207 INFO: Processing standard module hook 'hook-xml.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+7386 INFO: Processing standard module hook 'hook-_ctypes.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+7731 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\
+\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+7938 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+7940 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'C:\\Users\\nmphu\\AppData\\Local\
+\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+8096 INFO: Processing pre-safe-import-module hook 'hook-backports.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\
+\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+8097 INFO: Setuptools: 'backports' appears to be a full setuptools-vendored copy - creating alias to 
+'setuptools._vendor.backports'!
+8430 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Pyt
+hon\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+8431 INFO: Setuptools: 'tomli' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.tomli'!
+8841 INFO: Processing pre-safe-import-module hook 'hook-wheel.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Pyt
+hon\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+8842 INFO: Setuptools: 'wheel' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.wheel'!
+8891 INFO: Processing standard module hook 'hook-setuptools._vendor.importlib_metadata.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+8910 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Pyth
+on\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+8910 INFO: Setuptools: 'zipp' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.zipp'!
+8952 INFO: Processing standard module hook 'hook-zoneinfo.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\
+\Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+9034 INFO: Processing standard module hook 'hook-pytz.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+9312 INFO: Processing standard module hook 'hook-difflib.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+9622 INFO: Processing standard module hook 'hook-webbrowser.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+10031 INFO: Processing standard module hook 'hook-urllib3.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\
+\Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+10317 INFO: Processing standard module hook 'hook-charset_normalizer.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Progra
+ms\\Python\\Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+10460 INFO: Processing standard module hook 'hook-certifi.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\
+\Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+11218 INFO: Processing standard module hook 'hook-anyio.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\P
+ython312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+12460 INFO: Processing standard module hook 'hook-sqlite3.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+C:\Users\nmphu\AppData\Local\Programs\Python\Python312\Lib\site-packages\win11toast.py:45: SyntaxWarning: invalid 
+escape sequence '\W'
+  notification = ToastNotification(xDoc)
+13542 INFO: Processing standard module hook 'hook-Crypto.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\
+Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+14364 INFO: Processing standard module hook 'hook-PIL.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+14443 INFO: Processing standard module hook 'hook-PIL.Image.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+15005 INFO: Processing standard module hook 'hook-PIL.ImageFilter.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+15068 INFO: Processing standard module hook 'hook-pystray.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\
+\Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+15347 INFO: Processing pre-safe-import-module hook 'hook-six.moves.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs
+\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+15416 INFO: Processing pre-safe-import-module hook 'hook-gi.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Pytho
+n\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+15565 INFO: Processing standard module hook 'hook-ruamel.yaml.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Pyt
+hon\\Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+16104 INFO: Processing standard module hook 'hook-win32ctypes.core.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+17046 INFO: Processing standard module hook 'hook-xml.dom.domreg.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+17192 INFO: Analyzing hidden import 'apscheduler.triggers.interval'
+17196 INFO: Analyzing hidden import 'tkinter.scrolledtext'
+17198 INFO: Analyzing hidden import 'tkinter.filedialog'
+17219 INFO: Analyzing hidden import 'plyer.platforms.win'
+17220 INFO: Analyzing hidden import 'plyer.platforms.win.notification'
+17231 INFO: Analyzing hidden import 'win32gui_struct'
+17283 INFO: Processing standard module hook 'hook-pywintypes.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Pyth
+on\\Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+17355 INFO: Analyzing hidden import 'apscheduler.executors.debug'
+17357 INFO: Analyzing hidden import 'apscheduler.executors.gevent'
+17358 INFO: Analyzing hidden import 'apscheduler.executors.tornado'
+17360 INFO: Analyzing hidden import 'apscheduler.executors.twisted'
+17361 INFO: Analyzing hidden import 'apscheduler.jobstores.mongodb'
+17367 INFO: Analyzing hidden import 'apscheduler.jobstores.redis'
+17372 INFO: Analyzing hidden import 'apscheduler.jobstores.rethinkdb'
+17378 INFO: Analyzing hidden import 'apscheduler.jobstores.sqlalchemy'
+17383 INFO: Analyzing hidden import 'apscheduler.jobstores.zookeeper'
+17389 INFO: Analyzing hidden import 'apscheduler.schedulers.gevent'
+17390 INFO: Analyzing hidden import 'apscheduler.schedulers.qt'
+17392 INFO: Analyzing hidden import 'apscheduler.schedulers.tornado'
+17394 INFO: Analyzing hidden import 'apscheduler.schedulers.twisted'
+17396 INFO: Analyzing hidden import 'apscheduler.triggers.combining'
+17399 INFO: Analyzing hidden import 'apscheduler.triggers.date'
+17400 INFO: Analyzing hidden import 'pystray._info'
+17401 INFO: Analyzing hidden import 'tkhtmlview'
+17431 INFO: Processing module hooks (post-graph stage)...
+17765 INFO: Processing standard module hook 'hook-PIL.SpiderImagePlugin.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+17959 INFO: Processing standard module hook 'hook-_tkinter.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks'
+17961 INFO: Processing standard module hook 'hook-tzdata.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\
+Python312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+18538 INFO: Performing binary vs. data reclassification (2302 entries)
+18808 INFO: Looking for ctypes DLLs
+18864 INFO: Analyzing run-time hooks ...
+18868 INFO: Including run-time hook 'pyi_rth_inspect.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+18870 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+18872 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+18874 INFO: Including run-time hook 'pyi_rth_setuptools.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+18875 INFO: Including run-time hook 'pyi_rth_pywintypes.py' from 'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\P
+ython312\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\rthooks'
+18876 INFO: Including run-time hook 'pyi_rth__tkinter.py' from 
+'C:\\Users\\nmphu\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+18936 INFO: Creating base_library.zip...
+18955 INFO: Looking for dynamic libraries
+20082 INFO: Extra DLL search directories (AddDllDirectory): []
+20082 INFO: Extra DLL search directories (PATH): []
+20551 INFO: Warnings written to C:\Unillog\ThaoResearch\build\ThaoResearch\warn-ThaoResearch.txt
+20629 INFO: Graph cross-reference written to C:\Unillog\ThaoResearch\build\ThaoResearch\xref-ThaoResearch.html
+20688 INFO: checking PYZ
+20688 INFO: Building PYZ because PYZ-00.toc is non existent
+20688 INFO: Building PYZ (ZlibArchive) C:\Unillog\ThaoResearch\build\ThaoResearch\PYZ-00.pyz
+21360 INFO: Building PYZ (ZlibArchive) C:\Unillog\ThaoResearch\build\ThaoResearch\PYZ-00.pyz completed successfully.
+21405 INFO: checking PKG
+21406 INFO: Building PKG because PKG-00.toc is non existent
+21406 INFO: Building PKG (CArchive) ThaoResearch.pkg
+28337 INFO: Building PKG (CArchive) ThaoResearch.pkg completed successfully.
+28374 INFO: Bootloader C:\Users\nmphu\AppData\Local\Programs\Python\Python312\Lib\site-packages\PyInstaller\bootloader\
+Windows-64bit-intel\runw.exe
+28374 INFO: checking EXE
+28374 INFO: Building EXE because EXE-00.toc is non existent
+28374 INFO: Building EXE from EXE-00.toc
+28375 INFO: Copying bootloader EXE to C:\Unillog\ThaoResearch\dist\ThaoResearch.exe
+28419 INFO: Copying icon to EXE
+28458 INFO: Copying 0 resources to EXE
+28458 INFO: Embedding manifest in EXE
+28498 INFO: Appending PKG archive to EXE
+28590 INFO: Fixing EXE headers
+28925 INFO: Building EXE from EXE-00.toc completed successfully.
+28961 INFO: Build complete! The results are available in: C:\Unillog\ThaoResearch\dist
+Running PyInstaller with args:
+  --noconfirm
+  --onefile
+  --windowed
+  --name
+  ThaoResearch
+  --paths
+  C:\Unillog\ThaoResearch
+  --add-data
+  C:\Unillog\ThaoResearch\locales;locales
+  --add-data
+  C:\Unillog\ThaoResearch\config.yaml;.
+  --add-data
+  C:\Unillog\ThaoResearch\.env;.
+  --add-data
+  C:\Unillog\ThaoResearch\assets;assets
+  --add-data
+  C:\Unillog\ThaoResearch\license_generator.py;.
+  --add-data
+  C:\Unillog\ThaoResearch\license_checker.py;.
+  --hidden-import
+  apscheduler.jobstores.memory
+  --hidden-import
+  apscheduler.executors.pool
+  --hidden-import
+  apscheduler.triggers.interval
+  --hidden-import
+  apscheduler.triggers.cron
+  --hidden-import
+  telegram.ext._application
+  --hidden-import
+  tkinter
+  --hidden-import
+  tkinter.ttk
+  --hidden-import
+  tkinter.scrolledtext
+  --hidden-import
+  tkinter.filedialog
+  --hidden-import
+  tkinter.messagebox
+  --hidden-import
+  pystray
+  --hidden-import
+  PIL
+  --hidden-import
+  PIL.Image
+  --hidden-import
+  PIL.ImageDraw
+  --hidden-import
+  PIL.ImageFont
+  --hidden-import
+  win11toast
+  --hidden-import
+  win10toast
+  --hidden-import
+  plyer
+  --hidden-import
+  plyer.platforms.win
+  --hidden-import
+  plyer.platforms.win.notification
+  --hidden-import
+  win32api
+  --hidden-import
+  win32con
+  --hidden-import
+  win32gui
+  --hidden-import
+  win32gui_struct
+  --collect-all
+  apscheduler
+  --collect-all
+  pystray
+  --collect-all
+  tkhtmlview
+  --icon
+  C:\Unillog\ThaoResearch\assets\tray.ico
+  C:\Unillog\ThaoResearch\main.py
+
+Build complete. Output:
+  C:\Unillog\ThaoResearch\dist\ThaoResearch.exe

@@ -1,0 +1,10 @@
+﻿recent articles count: 0
+queued 2 articles
+after poll, recent count: 2
+listbox content:
+ - [PRICE] Crude Oil       Citi lifts Brent outlook but still sees oil falling in 2027
+ - [URGENT] Crude Oil       Oil breaks  as Iran tensions escalate
+--- clear log ---
+logs files: [WindowsPath('logs/app.log'), WindowsPath('logs/app_20260808_224539.log'), WindowsPath('logs/app_20260808_224547.log'), WindowsPath('logs/app_20260808_224812.log')]
+log_text content len: 0
+OK

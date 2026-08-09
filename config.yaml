@@ -1,0 +1,55 @@
+general:
+  enable_desktop_toast: true
+  enable_telegram_alert: true
+  max_articles_per_run: 10
+  timezone: Asia/Ho_Chi_Minh
+  language: en
+  force_send_duplicates: false
+  autosave_settings: true
+scheduler:
+  mode: fixed
+  fixed_interval_minutes: 1
+sources:
+- name: Bloomberg Markets
+  type: rss
+  url: https://feeds.bloomberg.com/markets/news.rss
+  enabled: true
+commodities:
+- name: Crude Oil
+  keywords:
+  - crude oil
+  - WTI
+  - Brent
+  - OPEC
+  enabled: true
+  price_threshold: 85.0
+- name: Gold
+  keywords:
+  - gold
+  - XAU
+  - bullion
+  enabled: true
+  price_threshold: 1900.0
+- name: Gasoline
+  keywords:
+  - gasoline
+  - RBOB
+  - fuel
+  enabled: true
+filters:
+  high_priority_keywords:
+  - halt
+  - surge
+  - crash
+  - sanctions
+  - embargo
+  - record
+  - forecast
+  - close
+  - settlement
+  blacklist_keywords:
+  - advertisement
+  - sponsored
+  - premium content
+  enable_delta_alert: true
+  delta_threshold_pct: 5.0
