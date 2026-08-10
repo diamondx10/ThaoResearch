@@ -42,22 +42,10 @@ STATUS_ACTIVATED = "activated"
 # raw 16-char string the user entered (the spec says it's fine to
 # display it; we don't mask it). ``valid_to`` is the decoded
 # ``YYYY-MM-DD`` expiration date.
-_LICENSE_FIELDS = ("license_key", "valid_to", "issued_at", "last_verified")
-
-
-class LicenseError(Exception):
-    """Base exception for license errors."""
-
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class LicenseInvalidError(LicenseError):
-    """License key is wrong."""
-
-
-class LicenseExpiredError(LicenseError):
-    """License has expired."""
+# Bypass flag: set BYPASS_LICENSE=1 (via --bypass-license build arg) to
+# make license always valid without any key or license file. This is for
+# distributors who want a zero-setup build.
+_BYPASS_LICENSE = os.environ.get("BYPASS_LICENSE", "").strip() in ("1", "true", "yes")
 
 
 def _check_token(token: str) -> Tuple[bool, str]:
@@ -190,7 +178,14 @@ def verify_license(license_key: str) -> dict:
 
 
 def is_license_valid() -> Tuple[bool, Optional[str]]:
-    """Return (is_valid, error_message). error_message is None when valid."""
+    """Return (is_valid, error_message). error_message is None when valid.
+
+    When ``BYPASS_LICENSE=1`` is set, always returns ``(True, None)`` so
+    the license check is always satisfied.
+    """
+    if _BYPASS_LICENSE:
+        return (True, None)
+
     try:
         data = load_license_file()
     except LicenseCorruptedError as e:
@@ -207,6 +202,8 @@ def is_license_valid() -> Tuple[bool, Optional[str]]:
 
 def is_expired() -> bool:
     """Return True if license exists but is past its expiration date."""
+    if _BYPASS_LICENSE:
+        return False
     try:
         data = load_license_file()
         is_valid, status = _check_token(data.get("license_key", ""))
@@ -217,6 +214,15 @@ def is_expired() -> bool:
 
 def get_license_info() -> Optional[dict]:
     """Return license metadata for display, or None if no file."""
+    if _BYPASS_LICENSE:
+        return {
+            "version": 2,
+            "license_key": "(bypass)",
+            "valid_to": "2099-12-31",
+            "issued_at": "2026-01-01T00:00:00Z",
+            "last_verified": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "bypass": True,
+        }
     try:
         return load_license_file()
     except LicenseCorruptedError:
@@ -225,6 +231,8 @@ def get_license_info() -> Optional[dict]:
 
 def get_license_status() -> str:
     """Return one of the STATUS_* strings describing the current state."""
+    if _BYPASS_LICENSE:
+        return STATUS_ACTIVATED
     try:
         data = load_license_file()
     except LicenseCorruptedError:

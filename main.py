@@ -102,8 +102,15 @@ def check_license_at_startup(args) -> bool:
         "help",
         "install_autostart",
         "uninstall_autostart",
+        "bypass_license",
     }
     cmd = getattr(args, "command", None)
+
+    # If --bypass-license was passed (set by the bypass-license build),
+    # set the env var so utils/license.py picks it up at import time.
+    if getattr(args, "bypass_license", False):
+        import os as _os
+        _os.environ["BYPASS_LICENSE"] = "1"
 
     # Env var bypass (for CI/testing) — applies to all commands except bypass ones
     env_license = os.environ.get("THRESEARCH_LICENSE")
@@ -1000,6 +1007,13 @@ def parse_args(argv=None):
     parser.add_argument("--install-autostart", action="store_true", help="Register Windows autostart and exit")
     parser.add_argument("--uninstall-autostart", action="store_true", help="Unregister Windows autostart and exit")
     parser.add_argument("--build-exe", action="store_true", help="Build .exe via PyInstaller and exit")
+    parser.add_argument(
+        "--bypass-license",
+        action="store_true",
+        help="Ignore license check entirely. "
+        "This flag is normally set automatically by the 'bypass-license' PyInstaller build "
+        "and should not be passed manually.",
+    )
 
     args = parser.parse_args(argv)
     # --cli-loop implies --cli + loop forever
@@ -1020,6 +1034,7 @@ def parse_args(argv=None):
             args.install_autostart,
             args.uninstall_autostart,
             args.build_exe,
+            args.bypass_license,
         ]
     )
     if not has_mode_flag:
