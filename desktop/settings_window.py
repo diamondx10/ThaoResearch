@@ -1181,14 +1181,22 @@ def _build_storage_block(tab, start_row: int) -> None:
     entry.grid(row=start_row + 2, column=1, sticky="w", pady=4)
 
     source_labels = {
-        "cli": "set by --data-dir for this run",
-        "env": "set by THAORESEARCH_DATA_DIR",
-        "pointer:portable": "your choice (saved next to the program)",
-        "pointer:user": "your choice (saved in LocalAppData)",
-        "portable": "default: next to the program",
-        "localappdata": "fallback: the program folder is not writable",
-        "temp": "last resort: temporary folder",
-        "unwritable": "no writable location found",
+        "cli": t("storage.src_cli", default="set by --data-dir for this run"),
+        "env": t("storage.src_env", default="set by THAORESEARCH_DATA_DIR"),
+        "pointer:portable": t(
+            "storage.src_pointer_portable",
+            default="your choice (saved next to the program)",
+        ),
+        "pointer:user": t(
+            "storage.src_pointer_user", default="your choice (saved in LocalAppData)"
+        ),
+        "portable": t("storage.src_portable", default="default: next to the program"),
+        "localappdata": t(
+            "storage.src_localappdata",
+            default="fallback: the program folder is not writable",
+        ),
+        "temp": t("storage.src_temp", default="last resort: temporary folder"),
+        "unwritable": t("storage.src_unwritable", default="no writable location found"),
     }
     note = ttk.Label(
         tab,
@@ -1202,7 +1210,10 @@ def _build_storage_block(tab, start_row: int) -> None:
 
     def _change_folder():
         chosen = filedialog.askdirectory(
-            title="Choose a folder for ThaoResearch data",
+            title=t(
+                "storage.dlg_choose_title",
+                default="Choose a folder for ThaoResearch data",
+            ),
             initialdir=str(paths.DATA_DIR if paths.DATA_DIR.exists() else Path.home()),
             mustexist=False,
         )
@@ -1212,9 +1223,14 @@ def _build_storage_block(tab, start_row: int) -> None:
 
         if not paths.is_writable(target):
             messagebox.showerror(
-                "Folder not writable",
-                f"ThaoResearch cannot write to:\n{target}\n\n"
-                "Pick a folder you own, such as one inside Documents.",
+                t("storage.err_not_writable_title", default="Folder not writable"),
+                t(
+                    "storage.err_not_writable_body",
+                    default=(
+                        "ThaoResearch cannot write to:\n{path}\n\n"
+                        "Pick a folder you own, such as one inside Documents."
+                    ),
+                ).format(path=target),
             )
             return
 
@@ -1230,11 +1246,16 @@ def _build_storage_block(tab, start_row: int) -> None:
                 if (old / n).is_file()
             ]
             if names and messagebox.askyesno(
-                "Copy existing data?",
-                "Copy your current settings, history and license to the new "
-                f"folder?\n\nFrom: {old}\nTo:   {target}\n\n"
-                f"Files: {', '.join(names)}\n\n"
-                "The originals are left untouched.",
+                t("storage.ask_copy_title", default="Copy existing data?"),
+                t(
+                    "storage.ask_copy_body",
+                    default=(
+                        "Copy your current settings, history and license to the "
+                        "new folder?\n\nFrom: {old}\nTo:   {new}\n\n"
+                        "Files: {files}\n\n"
+                        "The originals are left untouched."
+                    ),
+                ).format(old=old, new=target, files=", ".join(names)),
             ):
                 import shutil
 
@@ -1247,46 +1268,84 @@ def _build_storage_block(tab, start_row: int) -> None:
 
         ok, where = paths.save_data_dir_choice(target)
         if not ok:
-            messagebox.showerror("Could not save the choice", where)
+            messagebox.showerror(
+                t("storage.err_save_title", default="Could not save the choice"), where
+            )
             return
 
         path_var.set(str(target))
-        note.configure(text="your choice — restart to apply", foreground=theme.COLORS["success"])
-        tail = f"\n\nCopied: {', '.join(moved)}" if moved else ""
+        note.configure(
+            text=t("storage.note_your_choice", default="your choice — restart to apply"),
+            foreground=theme.COLORS["success"],
+        )
+        tail = (
+            "\n\n"
+            + t("storage.copied_files", default="Copied: {files}").format(
+                files=", ".join(moved)
+            )
+            if moved
+            else ""
+        )
         messagebox.showinfo(
-            "Data folder changed",
-            f"ThaoResearch will use:\n{target}\n\n"
-            f"Saved in: {where}{tail}\n\n"
-            "Restart the app for this to take effect.",
+            t("storage.ok_changed_title", default="Data folder changed"),
+            t(
+                "storage.ok_changed_body",
+                default=(
+                    "ThaoResearch will use:\n{path}\n\n"
+                    "Saved in: {where}{tail}\n\n"
+                    "Restart the app for this to take effect."
+                ),
+            ).format(path=target, where=where, tail=tail),
         )
 
     def _reset_folder():
         removed = paths.clear_data_dir_choice()
         path_var.set(str(paths.default_portable_dir()))
-        note.configure(text="default — restart to apply", foreground=theme.COLORS["success"])
+        note.configure(
+            text=t("storage.note_default", default="default — restart to apply"),
+            foreground=theme.COLORS["success"],
+        )
+        detail = (
+            t("storage.reset_removed", default="Removed: {paths}").format(
+                paths=", ".join(str(p) for p in removed)
+            )
+            if removed
+            else t("storage.reset_none", default="No saved choice was set.")
+        )
         messagebox.showinfo(
-            "Reset to default",
-            "ThaoResearch will go back to its default data folder on the next "
-            "launch.\n\n"
-            + (f"Removed: {', '.join(str(p) for p in removed)}" if removed
-               else "No saved choice was set.")
-            + "\n\nYour files are not deleted.",
+            t("storage.reset_title", default="Reset to default"),
+            t(
+                "storage.reset_body",
+                default=(
+                    "ThaoResearch will go back to its default data folder on "
+                    "the next launch.\n\n{detail}\n\nYour files are not deleted."
+                ),
+            ).format(detail=detail),
         )
 
-    ttk.Button(btns, text="Change…", command=_change_folder).pack(side="left")
-    ttk.Button(btns, text="Open", command=lambda: _browse_path(paths.DATA_DIR)).pack(
-        side="left", padx=(6, 0)
-    )
-    ttk.Button(btns, text="Reset to default", command=_reset_folder).pack(
-        side="left", padx=(6, 0)
-    )
+    ttk.Button(
+        btns, text=t("storage.btn_change", default="Change…"), command=_change_folder
+    ).pack(side="left")
+    ttk.Button(
+        btns,
+        text=t("storage.btn_open", default="Open"),
+        command=lambda: _browse_path(paths.DATA_DIR),
+    ).pack(side="left", padx=(6, 0))
+    ttk.Button(
+        btns,
+        text=t("storage.btn_reset", default="Reset to default"),
+        command=_reset_folder,
+    ).pack(side="left", padx=(6, 0))
 
     if paths.DATA_DIR_FALLBACK:
         ttk.Label(
             tab,
-            text=(
-                "Your chosen folder could not be written to, so a fallback is "
-                "in use. Pick another folder."
+            text=t(
+                "storage.fallback_warning",
+                default=(
+                    "Your chosen folder could not be written to, so a fallback "
+                    "is in use. Pick another folder."
+                ),
             ),
             foreground=theme.COLORS["danger"],
             wraplength=430,
