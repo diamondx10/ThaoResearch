@@ -266,7 +266,13 @@ class TrayApp:
     def _open_article_window(self, article):
         from desktop.article_viewer import ArticleViewer
 
-        ArticleViewer(article, parent=self._tk_root).show()
+        # block=False matters: this runs inside the tray's Tk event
+        # dispatch, and the blocking form does not return until the user
+        # closes the window. Pressing "Read more" on two notifications
+        # therefore produced what looked like one window, with the second
+        # article appearing only after the first was dismissed. The viewer
+        # keeps itself alive in its own registry, so nothing is collected.
+        ArticleViewer(article, parent=self._tk_root).show(block=False)
 
     # ----------------------------------------------------------------- public
     def start_blocking(self):

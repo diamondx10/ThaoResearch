@@ -24,6 +24,29 @@ def _format_dt(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S %z")
 
 
+#: Viewers currently on screen. Two jobs:
+#:
+#:  1. Cascade. Every viewer used to be centred on the same spot, so two
+#:     articles opened from two notifications landed exactly on top of each
+#:     other and looked like one window.
+#:  2. Keep a reference. A non-blocking viewer has no local left holding it,
+#:     and once the Python object is collected its callbacks die with it.
+#:
+#: Entries are removed when the window is destroyed, so the cascade walks
+#: back to the start as the user closes things.
+_open_viewers: "list" = []
+
+#: Pixels each successive window is shifted, and how many steps before the
+#: cascade returns to the origin.
+_CASCADE_STEP = 34
+_CASCADE_WRAP = 6
+
+
+def open_count() -> int:
+    """How many viewers are currently on screen (used by tests)."""
+    return len(_open_viewers)
+
+
 class ArticleViewer:
     """Window showing one article with full metadata and action buttons.
 
@@ -82,6 +105,15 @@ class ArticleViewer:
             self.window.update_idletasks()
         except Exception:
             pass
+
+        # Register before building: _fit_to_content() reads the count to
+        # work out this window's cascade offset.
+        _open_viewers.append(self)
+        try:
+            self.window.bind("<Destroy>", self._on_destroy, add="+")
+        except Exception:
+            pass
+
         self._build_ui()
 
     def _build_ui(self):
@@ -312,11 +344,17 @@ class ArticleViewer:
             screen_h = self.window.winfo_screenheight()
             height = max(self._MIN_H, min(req_h, self._MAX_H, screen_h - 120))
 
-            # Centre on screen; a viewer opened from a toast should land
-            # where the eye already is, not in the top-left corner.
+            # Centre on screen, then cascade: two articles opened from two
+            # notifications must not land on the same pixel, or they look
+            # like a single window and the user has to close one to find
+            # the other.
             screen_w = self.window.winfo_screenwidth()
-            x = max(0, (screen_w - self._WIDTH) // 2)
-            y = max(0, (screen_h - height) // 3)
+            step = (max(0, len(_open_viewers) - 1) % _CASCADE_WRAP) * _CASCADE_STEP
+            x = max(0, (screen_w - self._WIDTH) // 2 + step)
+            y = max(0, (screen_h - height) // 3 + step)
+            # Never push a window off the bottom/right of the screen.
+            x = min(x, max(0, screen_w - self._WIDTH))
+            y = min(y, max(0, screen_h - height - 40))
             self.window.geometry(f"{self._WIDTH}x{height}+{x}+{y}")
         except Exception:
             self.window.geometry(f"{self._WIDTH}x700")
@@ -448,6 +486,22 @@ class ArticleViewer:
             except tk.TclError:
                 pass
 
+    def _on_destroy(self, event=None):
+        """Drop out of the open-viewer registry once the window is gone.
+
+        ``<Destroy>`` also fires for every child widget, so only act on the
+        event for the toplevel itself.
+        """
+        try:
+            if event is not None and event.widget is not self.window:
+                return
+        except Exception:
+            pass
+        try:
+            _open_viewers.remove(self)
+        except ValueError:
+            pass
+
     def _on_close_x(self):
         """Handle the WM_DELETE_WINDOW event.
 
@@ -474,12 +528,18 @@ class ArticleViewer:
         if self.on_next:
             self.on_next()
 
-    def show(self):
-        """Block the calling thread until the viewer is closed.
+    def show(self, block: bool = True):
+        """Put the viewer on screen.
 
-        For Toplevel viewers, ``wait_window`` keeps the window interactive
-        without spinning up a nested mainloop (which would deadlock if the
-        caller is already on the Tk thread).
+        ``block=True`` (the default, kept for existing callers) waits until
+        the window is closed. ``block=False`` returns immediately.
+
+        Anything opening viewers from an event dispatch must pass
+        ``block=False``. ``wait_window`` does not return until the user
+        closes that window, so a dispatcher that blocked on the first
+        article could not get to the second: opening "Read more" on two
+        notifications appeared to produce one window, and the second only
+        turned up after the first was dismissed.
         """
         # On Windows, a Toplevel whose parent is withdrawn will not steal
         # focus or appear on top of other windows. Make sure the viewer
@@ -490,6 +550,8 @@ class ArticleViewer:
             self.window.focus_force()
         except tk.TclError:
             pass
+        if not block:
+            return self
         if self._owns_root:
             try:
                 self.window.mainloop()
@@ -503,6 +565,7 @@ class ArticleViewer:
                 self.window.wait_window()
             except tk.TclError:
                 pass
+        return self
 
 
 def open_viewer(
