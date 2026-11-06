@@ -1,6 +1,7 @@
 """SQLite database for deduplication and history."""
 from __future__ import annotations
 
+import logging
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -8,10 +9,27 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
 
-from utils.paths import DATA_DIR
+from utils import paths
 
-DB_DIR = DATA_DIR
-DB_PATH = DB_DIR / "history.db"
+logger = logging.getLogger("thaoresearch.utils.database")
+
+
+def db_dir() -> Path:
+    """Resolved data directory, read at call time (the user can move it)."""
+    return paths.DATA_DIR
+
+
+def db_path() -> Path:
+    return db_dir() / "history.db"
+
+
+def __getattr__(name: str):
+    """Back-compat for callers still reading ``database.DB_PATH``/``DB_DIR``."""
+    if name == "DB_PATH":
+        return db_path()
+    if name == "DB_DIR":
+        return db_dir()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Registry of all open connections keyed by ``threading.get_ident()``.
 # Using a plain dict + lock (instead of ``threading.local``) so that
@@ -28,8 +46,8 @@ def _get_connection() -> sqlite3.Connection:
     tid = threading.get_ident()
     conn = _connections.get(tid)
     if conn is None:
-        DB_DIR.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(DB_PATH), timeout=10)
+        db_dir().mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path()), timeout=10)
         conn.row_factory = sqlite3.Row
         with _lock:
             _connections[tid] = conn
@@ -92,11 +110,21 @@ def init_db() -> None:
             )
             """
         )
-        # Migration: add article_summary to older DBs that predate this column.
-        try:
-            cur.execute("ALTER TABLE sent_articles ADD COLUMN article_summary TEXT DEFAULT ''")
-        except Exception:
-            pass  # column already exists
+        # Migrations for DBs created before these columns existed. SQLite has
+        # no "ADD COLUMN IF NOT EXISTS", so a failure here just means the
+        # column is already present.
+        for ddl in (
+            "ALTER TABLE sent_articles ADD COLUMN article_summary TEXT DEFAULT ''",
+            # Full article body, cached the first time the user taps "Read
+            # more" in Telegram so later expansions are instant and we do not
+            # hammer the publisher on every button press.
+            "ALTER TABLE sent_articles ADD COLUMN article_body TEXT DEFAULT ''",
+            "ALTER TABLE sent_articles ADD COLUMN body_fetched_at TIMESTAMP",
+        ):
+            try:
+                cur.execute(ddl)
+            except Exception:
+                pass
         cur.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_sent_at ON sent_articles(sent_at DESC)
@@ -152,6 +180,50 @@ def mark_sent(
                 article_summary or "",
             ),
         )
+
+
+def get_article_row(article_hash: str) -> Optional[dict]:
+    """Return title / url / summary / cached body for one article, or None."""
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                "SELECT article_title, article_url, commodity, is_urgent, "
+                "       article_summary, article_body "
+                "FROM sent_articles WHERE article_hash = ? LIMIT 1",
+                (article_hash,),
+            )
+            row = cur.fetchone()
+    except Exception as e:
+        logger.warning("get_article_row failed: %s", e)
+        return None
+    if not row:
+        return None
+    return {
+        "title": row[0] or "",
+        "url": row[1] or "",
+        "commodity": row[2] or "",
+        "is_urgent": bool(row[3]),
+        "summary": (row[4] or "").strip(),
+        "body": (row[5] or "").strip(),
+    }
+
+
+def save_article_body(article_hash: str, body: str) -> bool:
+    """Cache the extracted full article text. Returns True when stored."""
+    if not body:
+        return False
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                "UPDATE sent_articles SET article_body = ?, "
+                "       body_fetched_at = CURRENT_TIMESTAMP "
+                "WHERE article_hash = ?",
+                (body, article_hash),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.warning("save_article_body failed: %s", e)
+        return False
 
 
 def get_history(

@@ -187,6 +187,10 @@ xcopy /Y /E /EXCLUDE:build_exclude.txt "locales\*" "installer_staging\locales\" 
 REM Copy assets (only essential files, exclude __pycache__ and dev scripts)
 xcopy /Y /E /EXCLUDE:build_exclude.txt "assets\*" "installer_staging\assets\" >nul 2>nul
 
+REM Portable docs: how to choose a data folder, and what to do if it won't start
+copy /Y "packaging\README-PORTABLE.txt" "installer_staging\README.txt" >nul 2>nul
+copy /Y "packaging\datadir.txt.example" "installer_staging\datadir.txt.example" >nul 2>nul
+
 REM Create the zip from staging folder
 powershell -Command "Compress-Archive -Path 'installer_staging\*' -DestinationPath 'installer_output\ThaoResearch-1.0.0-portable.zip' -Force"
 

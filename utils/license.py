@@ -26,11 +26,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple
 
-from utils.paths import DATA_DIR
+from utils import paths
 
 logger = logging.getLogger("thaoresearch.utils.license")
 
-LICENSE_FILE = DATA_DIR / "license.dat"
+def license_file() -> Path:
+    """Path to the license blob, resolved against the current data folder."""
+    return paths.DATA_DIR / "license.dat"
+
+
+def __getattr__(name: str):
+    """Back-compat: ``license.LICENSE_FILE`` still works and stays current."""
+    if name == "LICENSE_FILE":
+        return license_file()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Status strings used in the UI. Keep these stable — locale files key
 # off them for translations.
@@ -123,20 +132,20 @@ def save_license(license_key: str) -> dict:
         "issued_at": now,
         "last_verified": now,
     }
-    LICENSE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LICENSE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    license_file().parent.mkdir(parents=True, exist_ok=True)
+    license_file().write_text(json.dumps(data, indent=2), encoding="utf-8")
     logger.info("License saved (valid to %s)", valid_to)
     return data
 
 
 def load_license_file() -> dict:
     """Load the license file. Raises LicenseCorruptedError on bad/missing file."""
-    if not LICENSE_FILE.exists():
+    if not license_file().exists():
         raise LicenseCorruptedError(
-            f"License file not found at {LICENSE_FILE}. Please enter your license key."
+            f"License file not found at {license_file()}. Please enter your license key."
         )
     try:
-        text = LICENSE_FILE.read_text(encoding="utf-8")
+        text = license_file().read_text(encoding="utf-8")
         data = json.loads(text)
     except (json.JSONDecodeError, OSError) as e:
         raise LicenseCorruptedError(f"License file is corrupted: {e}") from e
@@ -176,7 +185,7 @@ def verify_license(license_key: str) -> dict:
             if not data.get("issued_at"):
                 data["issued_at"] = now
         data["last_verified"] = now
-        LICENSE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        license_file().write_text(json.dumps(data, indent=2), encoding="utf-8")
         return data
     except LicenseCorruptedError:
         pass
@@ -258,8 +267,8 @@ def get_license_status() -> str:
 
 def clear_license() -> None:
     """Remove the license file (used by --reset-license)."""
-    if LICENSE_FILE.exists():
-        LICENSE_FILE.unlink()
+    if license_file().exists():
+        license_file().unlink()
         logger.info("License file removed")
 
 
@@ -317,7 +326,7 @@ def prompt_for_license(cli_mode: bool = False, max_attempts: int = 3) -> Optiona
             print("[E0901] License key cannot be empty.")
             continue
         try:
-            if not LICENSE_FILE.exists():
+            if not license_file().exists():
                 save_license(key)
             verify_license(key)
             print("[OK] License verified successfully.")

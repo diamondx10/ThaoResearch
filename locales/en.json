@@ -7,13 +7,11 @@
   "tray.open_logs": "Open logs folder",
   "tray.open_data": "Open data folder",
   "tray.exit": "Exit",
-
   "toast.title_alert": "ThaoResearch - {commodity} ({status})",
   "toast.click_to_read": "Click to read full article",
   "toast.status_price": "Price Alert",
   "toast.status_keyword": "Keyword Match",
   "toast.status_urgent": "Urgent",
-
   "viewer.source_label": "Source",
   "viewer.published_label": "Published",
   "viewer.price_label": "Detected price",
@@ -26,7 +24,6 @@
   "viewer.loading_content": "Loading article content…",
   "viewer.full_content_unavailable": "\n\n(Could not load full content — click 'Open in browser' to read the original.)",
   "viewer.no_history": "No articles in history yet.",
-
   "history.title": "History - ThaoResearch",
   "history.filter_all": "All",
   "history.col_time": "Time",
@@ -38,7 +35,6 @@
   "history.refresh": "Refresh",
   "history.empty": "No articles match the filter.",
   "history.double_click_hint": "Double-click a row to open in Article Viewer.",
-
   "settings.title": "Settings - ThaoResearch",
   "settings.tab_general": "General",
   "settings.tab_sources": "Sources",
@@ -76,7 +72,6 @@
   "settings.btn_edit": "Edit",
   "settings.btn_delete": "Delete",
   "settings.btn_toggle": "Toggle enabled",
-
   "settings.sources.add_title": "Add source",
   "settings.sources.edit_title": "Edit source",
   "settings.sources.field_name": "Name:",
@@ -88,7 +83,6 @@
   "settings.sources.error_name_exists": "A source named '{name}' already exists.",
   "settings.sources.error_select_row": "Please select a row first.",
   "settings.sources.confirm_delete": "Delete {count} source(s)?\n\n{names}",
-
   "settings.commodities.add_title": "Add commodity",
   "settings.commodities.edit_title": "Edit commodity",
   "settings.commodities.field_name": "Name:",
@@ -99,14 +93,12 @@
   "settings.commodities.error_name_exists": "A commodity named '{name}' already exists.",
   "settings.commodities.error_select_row": "Please select a row first.",
   "settings.commodities.confirm_delete": "Delete {count} commodity(ies)?\n\n{names}",
-
   "status.price_alert": "Price Alert",
   "status.keyword_match": "Keyword Match",
   "status.urgent": "Urgent",
   "status.sent": "Sent",
   "status.skipped_duplicate": "Skipped (duplicate)",
   "status.error": "Error",
-
   "license.title": "ThaoResearch - License",
   "license.prompt_title": "Enter your license key",
   "license.prompt_subtitle": "A valid license is required to use ThaoResearch.",
@@ -114,13 +106,11 @@
   "license.btn_submit": "Submit",
   "license.btn_cancel": "Cancel",
   "license.invalid": "Please enter a valid license key.",
-
   "error.no_token": "TELEGRAM_BOT_TOKEN is empty. Telegram alerts disabled.",
   "error.network": "Network error. Will retry next run.",
   "error.telegram_api": "Telegram API rejected the request.",
   "error.token_invalid": "Bot token is invalid. Check your .env file.",
   "error.chat_id_invalid": "Chat ID is invalid or bot not added to chat.",
-
   "error.E0100": "Config file not found.",
   "error.E0100.suggestion": "Copy config.yaml.example to config.yaml.",
   "error.E0201": "TELEGRAM_BOT_TOKEN is empty.",
@@ -135,7 +125,6 @@
   "error.E0501.suggestion": "Source may be temporarily empty. Will retry next run.",
   "error.E0901": "License key is invalid.",
   "error.E0901.suggestion": "Check the key. For demo, use '1234'.",
-
   "common.yes": "Yes",
   "common.no": "No",
   "common.cancel": "Cancel",
@@ -144,7 +133,6 @@
   "common.empty": "Empty",
   "common.save": "Save",
   "common.close": "Close",
-
   "main.title": "ThaoResearch",
   "main.tab_settings": "Settings",
   "main.tab_dashboard": "Dashboard",
@@ -153,6 +141,7 @@
   "main.card_today": "Today",
   "main.card_prices": "Tracked Commodities",
   "main.card_next_run": "Next Run",
+  "main.recent_articles": "Recent articles",
   "main.status_ready": "Ready",
   "main.status_running": "Running...",
   "main.status_done": "Done",

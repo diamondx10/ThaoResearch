@@ -20,6 +20,7 @@ import argparse
 import logging
 import os
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -53,7 +54,7 @@ _job_state = {
     "last_finished_at": 0.0,
     "timeout_s": 120.0,  # worst-case crawl + filter pipeline
 }
-from utils.paths import APP_ROOT, DATA_DIR, resolve_user_path
+from utils.paths import APP_ROOT, resolve_user_path
 from utils.errors import (
     EmptyChatIdError,
     EmptyTokenError,
@@ -77,9 +78,8 @@ from utils.ui import (
 VERSION = "1.0.0"
 # Config files now live in the data/ folder alongside history.db and prices.db
 # for full portability (one folder = everything)
-from utils.paths import APP_ROOT, DATA_DIR, CONFIG_FILE, INIT_CONFIG_FILE
-DEFAULT_CONFIG = CONFIG_FILE
-DEFAULT_INIT_CONFIG = INIT_CONFIG_FILE
+from utils import paths as paths_mod
+from utils.paths import APP_ROOT
 # Credentials: ``utils/credentials.py`` (generated, gitignored) is preferred so
 # release builds can bake the token into the .exe. ``.env`` is the dev fallback
 # and the single source of truth — regenerate the module with
@@ -97,6 +97,7 @@ DEFAULT_CONFIG_TEMPLATE = {
         "max_articles_per_run": 50,
         "timezone": "Asia/Ho_Chi_Minh",
         "language": "en",
+        "theme": "system",
         "force_send_duplicates": False,
         "autosave_settings": True,
     },
@@ -133,12 +134,51 @@ def _create_default_config(path: Path) -> None:
     """Create a default config file if it doesn't exist."""
     try:
         import yaml
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             yaml.safe_dump(DEFAULT_CONFIG_TEMPLATE, f, allow_unicode=True, sort_keys=False)
         print(f"[INFO] Created default config at: {path}")
     except Exception as e:
         print(f"[WARN] Could not create default config: {e}")
+
+
+def _migrate_legacy_config(target: Path) -> bool:
+    """Copy a pre-existing config from the old location into the data folder.
+
+    Config used to live beside the program (``<app>/config.yaml`` and
+    ``<app>/init_config.yaml``); it now lives in the data folder so that one
+    directory holds everything and can be moved or put on a USB stick.
+
+    Without this step the move looks like data loss: a user who had tuned 32
+    sources and 24 keywords would start the new build and be handed the
+    built-in one-source default, with their real file still sitting on disk
+    one directory up. Returns True when something was migrated.
+    """
+    legacy_candidates = [
+        APP_ROOT / "init_config.yaml",  # the old autosave target wins
+        APP_ROOT / "config.yaml",
+    ]
+    for legacy in legacy_candidates:
+        try:
+            if not legacy.is_file():
+                continue
+            data = yaml.safe_load(legacy.read_text(encoding="utf-8")) or {}
+            if not isinstance(data, dict) or not data.get("sources"):
+                continue  # empty or unusable; keep looking
+            target.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+
+            shutil.copy2(legacy, target)
+            print(f"[INFO] Migrated your existing settings: {legacy} -> {target}")
+            print(
+                f"       ({len(data.get('sources') or [])} sources, "
+                f"{len(data.get('commodities') or [])} commodities). "
+                "The original file was left in place."
+            )
+            return True
+        except Exception as e:
+            print(f"[WARN] Could not migrate {legacy}: {e}")
+    return False
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -1037,9 +1077,20 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
         except Exception as e:
             logger_.exception("Tray thread crashed: %s", e)
 
-    logger_.debug("creating tray thread")
-    tray_thread = threading.Thread(target=_start_tray_in_thread, daemon=True, name="tray-icon")
-    tray_thread.start()
+    # NOTE ON ORDERING -- this is load-bearing.
+    #
+    # TrayApp.start_blocking() spawns its own "tk-gui" thread which creates a
+    # SECOND tk.Tk() root and withdraws it (see desktop/tray.py). Starting the
+    # tray before MainWindow meant two Tk interpreters were being created
+    # concurrently on two threads, and which one won the race decided whether
+    # the main window ever mapped. In a PyInstaller build the tray thread
+    # consistently won and the app started with NO visible window at all --
+    # the process ran, the scheduler ticked, and the user saw nothing. Dev
+    # runs happened to lose the race and looked fine, which is exactly the
+    # "works on my machine" shape of the bug.
+    #
+    # Create MainWindow's root on the main thread FIRST, then start the tray.
+    logger_.debug("creating MainWindow (main thread) before the tray thread")
 
     # Build and run MainWindow on the main thread
     main_window = MainWindow(
@@ -1060,6 +1111,12 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
         scheduler=scheduler,
         job_id="main_job",
     )
+    # The main Tk root now exists and owns the main thread; the tray's own
+    # root is created afterwards, on its own thread.
+    logger_.debug("creating tray thread")
+    tray_thread = threading.Thread(target=_start_tray_in_thread, daemon=True, name="tray-icon")
+    tray_thread.start()
+
     # Sync the GUI button with the scheduler's actual paused-by-default
     # state. (The MainWindow already defaults to ``_loop_running=False``,
     # but calling ``set_loop_state`` here keeps a single source of truth
@@ -1164,7 +1221,29 @@ def parse_args(argv=None):
     parser.add_argument("--cli-loop", action="store_true", help="Console loop: run forever, Ctrl+C to stop")
     parser.add_argument("--dry-run", action="store_true", help="Filter but do not send")
     parser.add_argument("--source", help="Crawl only this source by name")
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="Path to config file")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Path to config file (default: <data-dir>/init_config.yaml)",
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Folder for config, databases, license and logs. "
+            "Overrides the saved choice and $THAORESEARCH_DATA_DIR. "
+            "Default: 'data' next to the program when writable, "
+            "otherwise %%LOCALAPPDATA%%\\ThaoResearch\\data"
+        ),
+    )
+    parser.add_argument(
+        "--show-paths",
+        action="store_true",
+        help="Print the resolved data/log/config paths and exit",
+    )
     parser.add_argument("--lang", choices=["en", "vi", "ko"], help="Interface language")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable DEBUG logging")
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
@@ -1371,6 +1450,17 @@ def _resolve_config_path(user_path: Path) -> Path:
 def main(argv=None) -> int:
     args = parse_args(argv)
 
+    # ---- Data directory: resolve BEFORE anything opens a file -------------
+    # The logger, the SQLite helpers and the license module all derive their
+    # paths from utils.paths, so the override has to land before the first
+    # setup_logger() / init_db() call. An unwritable choice is reported
+    # rather than obeyed (paths.set_data_dir falls back and flags it).
+    paths_mod.set_data_dir(getattr(args, "data_dir", None))
+
+    if getattr(args, "show_paths", False):
+        print(paths_mod.describe_paths())
+        return 0
+
     # When running as a portable frozen install, all data must live next to
     # the EXE (so users can copy the install folder around). Any code that
     # still uses a bare ``Path("data/...")`` or ``Path("logs/...")`` will be
@@ -1475,24 +1565,27 @@ def main(argv=None) -> int:
     # last GUI edit is what they get on next launch. If only
     # ``config.yaml`` exists, we fall back to it (first run / frozen
     # build). ``--config <path>`` always wins (explicit override).
-    if args.config == DEFAULT_CONFIG:
-        init_path = _resolve_path(DEFAULT_INIT_CONFIG)
+    if args.config is None:
+        # Both candidates live in the resolved data directory, so read them
+        # from utils.paths rather than a module-level snapshot taken before
+        # --data-dir was applied.
+        init_path = paths_mod.INIT_CONFIG_FILE
         if init_path.exists():
             print(f"[INFO] Loading autosaved config from: {init_path}")
             args.config = init_path
+        elif paths_mod.CONFIG_FILE.exists():
+            print(f"[INFO] Loading config from: {paths_mod.CONFIG_FILE}")
+            args.config = paths_mod.CONFIG_FILE
+        elif _migrate_legacy_config(init_path):
+            args.config = init_path
         else:
-            # Create default config if neither init_config.yaml nor config.yaml exists
-            # This is the first-run experience for portable builds
-            config_path_to_create = init_path
+            # First run (fresh portable install): write the shipped defaults.
             try:
-                _create_default_config(config_path_to_create)
-                args.config = config_path_to_create
+                _create_default_config(init_path)
+                args.config = init_path
             except Exception as e:
                 print(f"[WARN] Could not create default config: {e}")
-                # Try config.yaml as fallback
-                fallback_path = _resolve_path(CONFIG_FILE)
-                if fallback_path.exists():
-                    args.config = fallback_path
+                args.config = init_path
 
     resolved_config = _resolve_config_path(args.config)
     if str(resolved_config) != str(args.config):
@@ -1638,7 +1731,7 @@ def main(argv=None) -> int:
         except Exception as e:
             logger_.exception("GUI crashed: %s", e)
             try:
-                crash_log = APP_ROOT / "logs" / "crash.log"
+                crash_log = paths_mod.LOG_DIR / "crash.log"
                 crash_log.parent.mkdir(parents=True, exist_ok=True)
                 with open(crash_log, "a", encoding="utf-8") as f:
                     f.write(
@@ -1659,7 +1752,7 @@ def main(argv=None) -> int:
         except Exception as e:
             logger_.exception("Daemon crashed: %s", e)
             try:
-                crash_log = APP_ROOT / "logs" / "crash.log"
+                crash_log = paths_mod.LOG_DIR / "crash.log"
                 crash_log.parent.mkdir(parents=True, exist_ok=True)
                 with open(crash_log, "a", encoding="utf-8") as f:
                     f.write(
@@ -1676,5 +1769,79 @@ def main(argv=None) -> int:
     return 1
 
 
+def _report_fatal(exc: BaseException) -> None:
+    """Make a startup crash visible, however the app was launched.
+
+    Release builds are PyInstaller ``--windowed``: there is no console, so a
+    traceback on stderr goes nowhere and the user just sees the program fail
+    to open. That is exactly how the ``PermissionError`` from an unwritable
+    data folder stayed invisible. We now, in order:
+
+      1. print to stderr (console builds, `python main.py`),
+      2. append to ``<data-dir>/logs/startup-error.log`` when anything is
+         writable, falling back to the temp folder,
+      3. show a Tk message box with the path report, so a user who only
+         double-clicks the exe still learns what went wrong and where.
+    """
+    import traceback
+
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+    try:
+        report = paths_mod.describe_paths()
+    except Exception:
+        report = "(path report unavailable)"
+
+    body = (
+        f"ThaoResearch {VERSION} failed to start.\n\n"
+        f"{type(exc).__name__}: {exc}\n\n"
+        f"{report}\n\n{tb}"
+    )
+
+    try:
+        print(body, file=sys.stderr)
+    except Exception:
+        pass
+
+    # Write somewhere -- the data dir if possible, else temp.
+    for target in (paths_mod.LOG_DIR, Path(tempfile.gettempdir()) / "ThaoResearch"):
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            with open(target / "startup-error.log", "a", encoding="utf-8") as f:
+                f.write(f"\n===== {datetime.now().isoformat()} =====\n{body}\n")
+            break
+        except Exception:
+            continue
+
+    # A dialog is the only channel a --windowed build actually has.
+    try:
+        import tkinter as _tk
+        from tkinter import messagebox as _mb
+
+        root = _tk.Tk()
+        root.withdraw()
+        hint = ""
+        if isinstance(exc, PermissionError) or "WinError 5" in str(exc):
+            hint = (
+                "\n\nThis usually means the folder holding the program is not "
+                "writable. Move the folder somewhere like your Documents, or "
+                "start it with:\n"
+                "    ThaoResearch.exe --data-dir \"%LOCALAPPDATA%\\ThaoResearch\""
+            )
+        _mb.showerror(
+            "ThaoResearch could not start",
+            f"{type(exc).__name__}: {exc}{hint}\n\n{report}",
+        )
+        root.destroy()
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException as _e:  # noqa: BLE001 - last line of defence
+        _report_fatal(_e)
+        sys.exit(1)

@@ -128,10 +128,49 @@ Windows VM** before sending it to a customer.
 | `ISCC.exe` not found | Inno Setup not installed | Install from <https://jrsoftware.org/isdl.php> or pass `/skip-installer`. |
 | Customer can't pick install dir outside `Program Files` | UAC / permissions | The installer requests admin — that's intentional for `Program Files`. Choose a user folder instead. |
 | Data folder wizard says "must be inside install folder" | You chose `Documents\ThaoResearch` etc. | Pick `<install dir>\data` (the default). |
-| After install, `.env` is missing | No `.env` existed at build time | Create `.env` at project root, rerun `build_release.bat`. |
+| After install, `.env` is missing | No `.env` existed at build time | Create `.env` at project root, run `python scripts/embed_credentials.py`, rerun `build_release.bat`. |
 | After install, app can't find `data/` | Data dir was deleted by antivirus / user | Open Settings → "Open data folder" to recreate it, or reinstall. |
+| **Nothing happens on double-click (works on the build machine)** | The folder holding the exe is not writable, so the logger crashed before any window appeared | Fixed: the data folder is now write-probed and falls back to `%LOCALAPPDATA%\ThaoResearch`. If an old build does this, run `ThaoResearch.exe --show-paths` from a console, or start it with `--data-dir "%LOCALAPPDATA%\ThaoResearch"`. |
+| Telegram alerts never arrive from the exe | Built without embedded credentials | `python scripts/embed_credentials.py`, then rebuild. `build_exe.py` warns when it has to build without them. |
+| `ZoneInfoNotFoundError` on the first scheduler tick | `tzdata` missing — Windows has no system IANA database | It is pinned in `requirements.txt` and collected by `build_exe.py`. Reinstall requirements and rebuild. |
+| GUI looks like plain grey Tk | `sv-ttk` theme data not bundled | `build_exe.py` passes `--collect-data sv_ttk`. Check it is installed before building. |
 
-## Why we use a portable layout (not `%APPDATA%`)
+## Where the data folder lives
+
+`APP_ROOT` (the exe's folder) and the **data folder** are two different
+things, and conflating them is what used to make a build run on the
+developer's machine and die on a customer's.
+
+The data folder is resolved at startup, in this order, and each candidate is
+**write-probed** (create the directory, write a file, read it back, delete it
+— `os.access()` lies about Windows ACLs):
+
+1. `--data-dir <path>` on the command line
+2. `%THAORESEARCH_DATA_DIR%`
+3. `datadir.txt` next to the exe — ships inside a portable folder
+4. `%LOCALAPPDATA%\ThaoResearch\datadir.txt` — written by the GUI picker
+5. `<exe folder>\data` — the true portable case (own folder, USB stick)
+6. `%LOCALAPPDATA%\ThaoResearch\data` — used when the exe folder is read-only
+7. `%TEMP%\ThaoResearch\data` — last resort, so the app can still start and
+   explain itself
+
+Config, both SQLite databases, `license.dat` and `logs/` all live there, so one
+folder is still the whole backup. Users change it in **Settings → General →
+Storage**, which offers to copy the existing files across and writes the
+pointer file.
+
+Check what a given build resolved to:
+
+```powershell
+ThaoResearch.exe --show-paths
+```
+
+Startup failures are no longer silent: a crash before the window exists writes
+`<data-dir>\logs\startup-error.log` and shows a message box with the path
+report, because a `--windowed` build has no console to print to.
+
+## Why the data folder is not simply `%APPDATA%`
+
 
 ThaoResearch is a single-user tool. Using `%APPDATA%` (the standard Windows
 convention) means:

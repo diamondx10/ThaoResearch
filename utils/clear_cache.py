@@ -30,14 +30,26 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
-from utils.paths import APP_ROOT
+from utils import paths
 
 logger = logging.getLogger("thaoresearch.utils.clear_cache")
 
-DATA_DIR = APP_ROOT / "data"
-LOGS_DIR = APP_ROOT / "logs"
+
+def __getattr__(name: str):
+    """Resolve DATA_DIR / LOGS_DIR against ``utils.paths`` at access time.
+
+    These used to be ``APP_ROOT / "data"`` and ``APP_ROOT / "logs"``, which
+    went stale the moment the data folder became user-selectable -- Clear
+    Cache would then report "not found" while the real databases sat
+    untouched somewhere else.
+    """
+    if name == "DATA_DIR":
+        return paths.DATA_DIR
+    if name == "LOGS_DIR":
+        return paths.LOG_DIR
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _force_close_handlers():
@@ -138,17 +150,23 @@ def _force_remove(p: Path) -> bool:
 
 
 def clear_local_data(
-    data_dir: Path = DATA_DIR,
-    logs_dir: Path = LOGS_DIR,
+    data_dir: Optional[Path] = None,
+    logs_dir: Optional[Path] = None,
     include_logs: bool = True,
 ) -> List[Tuple[str, str]]:
     """Remove the local DBs (and optionally logs).
+
+    ``data_dir`` / ``logs_dir`` default to the *current* resolved locations
+    rather than a snapshot taken at import, so Clear Cache still finds the
+    databases after the user moves the data folder.
 
     Returns a list of (path, status) tuples describing what happened:
         ("data/history.db", "removed")
         ("logs/app.log",    "removed")
         ("logs/",           "not found")
     """
+    data_dir = data_dir or paths.DATA_DIR
+    logs_dir = logs_dir or paths.LOG_DIR
     results: List[Tuple[str, str]] = []
 
     # 1. Close SQLite connections (history + prices) so the OS lets us

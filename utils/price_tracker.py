@@ -10,12 +10,26 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
 
-from utils.paths import DATA_DIR
+from utils import paths
 
 logger = logging.getLogger("thaoresearch.utils.price_tracker")
 
-DB_DIR = DATA_DIR
-DB_PATH = DB_DIR / "prices.db"
+def db_dir() -> Path:
+    """Resolved data directory, read at call time (the user can move it)."""
+    return paths.DATA_DIR
+
+
+def db_path() -> Path:
+    return db_dir() / "prices.db"
+
+
+def __getattr__(name: str):
+    """Back-compat for callers still reading ``price_tracker.DB_PATH``."""
+    if name == "DB_PATH":
+        return db_path()
+    if name == "DB_DIR":
+        return db_dir()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 MAX_HISTORY = 30
 
 # Registry of all open connections keyed by ``threading.get_ident()``.
@@ -29,8 +43,8 @@ def _get_connection() -> sqlite3.Connection:
     tid = threading.get_ident()
     conn = _connections.get(tid)
     if conn is None:
-        DB_DIR.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(DB_PATH), timeout=10)
+        db_dir().mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path()), timeout=10)
         conn.row_factory = sqlite3.Row
         with _lock:
             _connections[tid] = conn

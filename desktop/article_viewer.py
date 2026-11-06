@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from desktop import theme
 import tkinter as tk
 import webbrowser
 from datetime import datetime
@@ -17,12 +18,6 @@ from utils.i18n import t
 logger = logging.getLogger("thaoresearch.desktop.article_viewer")
 
 
-COLOR_BG = "#FFFFFF"
-COLOR_FG = "#1F1F1F"
-COLOR_MUTED = "#6B6B6B"
-COLOR_BORDER = "#E0E0E0"
-COLOR_SUCCESS = "#2E7D32"
-COLOR_DANGER = "#C42B1C"
 
 
 def _format_dt(dt: datetime) -> str:
@@ -76,7 +71,7 @@ class ArticleViewer:
         self.window.title("Article - ThaoResearch")
         self.window.geometry("700x800")
         self.window.minsize(500, 600)
-        self.window.configure(bg=COLOR_BG)
+        self.window.configure(bg=theme.COLORS["surface"])
         apply_app_icon(self.window)
         # Force the window to be mapped on screen immediately. Without this,
         # a Toplevel of a withdrawn parent takes a tick before Tk maps it,
@@ -100,7 +95,7 @@ class ArticleViewer:
         ttk.Label(header, text=f"{t('viewer.commodity_label', default='Commodity:')}    {commodity}").pack(anchor="w")
 
         status_text = t("status.price_alert") if self.article.is_price_alert else t("status.keyword_match")
-        status_color = COLOR_SUCCESS if self.article.is_price_alert else COLOR_MUTED
+        status_color = theme.COLORS["success"] if self.article.is_price_alert else theme.COLORS["fg_muted"]
         status_line_frame = ttk.Frame(header)
         status_line_frame.pack(anchor="w", pady=(2, 0))
         ttk.Label(status_line_frame, text=f"{t('viewer.status_label', default='Status:')}       {status_text}").pack(
@@ -110,8 +105,8 @@ class ArticleViewer:
             ttk.Label(
                 status_line_frame,
                 text=f"  -  {t('status.urgent')}",
-                foreground=COLOR_DANGER,
-                font=("Segoe UI", 10, "bold"),
+                foreground=theme.COLORS["danger"],
+                font=theme.font("subheading"),
             ).pack(side="left")
 
         ttk.Label(
@@ -141,9 +136,9 @@ class ArticleViewer:
         title_label = tk.Label(
             body_frame,
             text=self.article.title,
-            font=("Segoe UI", 16, "bold"),
-            bg=COLOR_BG,
-            fg=COLOR_FG,
+            font=theme.font("title"),
+            bg=theme.COLORS["surface"],
+            fg=theme.COLORS["fg"],
             wraplength=640,
             justify="left",
             anchor="w",
@@ -157,9 +152,9 @@ class ArticleViewer:
         text_frame.pack(fill="both", expand=True)
         self._body_text = tk.Text(
             text_frame,
-            font=("Segoe UI", 11),
-            bg=COLOR_BG,
-            fg=COLOR_FG,
+            font=theme.font("body"),
+            bg=theme.COLORS["surface"],
+            fg=theme.COLORS["fg"],
             wrap="word",
             relief="flat",
             borderwidth=0,
@@ -167,6 +162,7 @@ class ArticleViewer:
             padx=2,
             pady=4,
         )
+        theme.style_text_widget(self._body_text)
         body_scroll = ttk.Scrollbar(
             text_frame, orient="vertical", command=self._body_text.yview
         )
@@ -197,9 +193,9 @@ class ArticleViewer:
         link_label = tk.Label(
             body_frame,
             text=self.article.link,
-            font=("Segoe UI", 9, "underline"),
-            bg=COLOR_BG,
-            fg="#0066CC",
+            font=theme.font("link"),
+            bg=theme.COLORS["surface"],
+            fg=theme.COLORS["accent"],
             cursor="hand2",
             wraplength=640,
             justify="left",

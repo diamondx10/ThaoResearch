@@ -7,13 +7,11 @@
   "tray.open_logs": "Mở thư mục logs",
   "tray.open_data": "Mở thư mục dữ liệu",
   "tray.exit": "Thoát",
-
   "toast.title_alert": "ThaoResearch - {commodity} ({status})",
   "toast.click_to_read": "Bấm để đọc chi tiết",
   "toast.status_price": "Cảnh báo giá",
   "toast.status_keyword": "Tin liên quan",
   "toast.status_urgent": "Khẩn",
-
   "viewer.source_label": "Nguồn",
   "viewer.published_label": "Thời gian",
   "viewer.price_label": "Giá phát hiện",
@@ -26,7 +24,6 @@
   "viewer.loading_content": "Đang tải nội dung bài báo…",
   "viewer.full_content_unavailable": "\n\n(Không tải được nội dung đầy đủ — bấm 'Mở trong trình duyệt' để mở bài gốc.)",
   "viewer.no_history": "Chưa có tin nào trong lịch sử.",
-
   "history.title": "Lịch sử - ThaoResearch",
   "history.filter_all": "Tất cả",
   "history.col_time": "Thời gian",
@@ -38,7 +35,6 @@
   "history.refresh": "Làm mới",
   "history.empty": "Không có bài nào khớp bộ lọc.",
   "history.double_click_hint": "Nhấp đúp vào dòng để mở trong Article Viewer.",
-
   "settings.title": "Cài đặt - ThaoResearch",
   "settings.tab_general": "Tổng quát",
   "settings.tab_sources": "Nguồn tin",
@@ -76,7 +72,6 @@
   "settings.btn_edit": "Sửa",
   "settings.btn_delete": "Xoá",
   "settings.btn_toggle": "Bật/Tắt",
-
   "settings.sources.add_title": "Thêm nguồn tin",
   "settings.sources.edit_title": "Sửa nguồn tin",
   "settings.sources.field_name": "Tên:",
@@ -88,7 +83,6 @@
   "settings.sources.error_name_exists": "Đã có nguồn tên '{name}'.",
   "settings.sources.error_select_row": "Vui lòng chọn một dòng trước.",
   "settings.sources.confirm_delete": "Xoá {count} nguồn?\n\n{names}",
-
   "settings.commodities.add_title": "Thêm hàng hoá",
   "settings.commodities.edit_title": "Sửa hàng hoá",
   "settings.commodities.field_name": "Tên:",
@@ -99,14 +93,12 @@
   "settings.commodities.error_name_exists": "Đã có hàng hoá tên '{name}'.",
   "settings.commodities.error_select_row": "Vui lòng chọn một dòng trước.",
   "settings.commodities.confirm_delete": "Xoá {count} hàng hoá?\n\n{names}",
-
   "status.price_alert": "Cảnh báo giá",
   "status.keyword_match": "Khớp từ khoá",
   "status.urgent": "Khẩn",
   "status.sent": "Đã gửi",
   "status.skipped_duplicate": "Bỏ qua (trùng)",
   "status.error": "Lỗi",
-
   "license.title": "ThaoResearch - License",
   "license.prompt_title": "Nhập license key",
   "license.prompt_subtitle": "Cần license hợp lệ để dùng ThaoResearch.",
@@ -114,13 +106,11 @@
   "license.btn_submit": "Xác nhận",
   "license.btn_cancel": "Huỷ",
   "license.invalid": "Vui lòng nhập license key hợp lệ.",
-
   "error.no_token": "Chưa cấu hình TELEGRAM_BOT_TOKEN. Cảnh báo Telegram đã tắt.",
   "error.network": "Lỗi mạng. Sẽ thử lại sau.",
   "error.telegram_api": "Telegram từ chối yêu cầu.",
   "error.token_invalid": "Bot Token không hợp lệ. Kiểm tra lại .env.",
   "error.chat_id_invalid": "Chat ID không tồn tại hoặc bot chưa được thêm.",
-
   "error.E0100": "Không tìm thấy file config.",
   "error.E0100.suggestion": "Sao chép config.yaml.example sang config.yaml.",
   "error.E0201": "TELEGRAM_BOT_TOKEN đang trống.",
@@ -135,7 +125,6 @@
   "error.E0501.suggestion": "Nguồn có thể tạm thời rỗng. Sẽ thử lại lần sau.",
   "error.E0901": "License key không hợp lệ.",
   "error.E0901.suggestion": "Kiểm tra key. Với bản demo, dùng '1234'.",
-
   "common.yes": "Có",
   "common.no": "Không",
   "common.cancel": "Huỷ",
@@ -148,6 +137,7 @@
   "main.card_today": "Hôm nay",
   "main.card_prices": "Số commodity",
   "main.card_next_run": "Lần kế tiếp",
+  "main.recent_articles": "Bài viết gần đây",
   "main.btn_run_now": "Chạy ngay",
   "main.btn_fetch_now": "Fetch ngay",
   "main.btn_pause_loop": "Tạm dừng",

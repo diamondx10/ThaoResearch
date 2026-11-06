@@ -1,0 +1,13 @@
+# ThaoResearch data folder pointer
+#
+# Rename this file to  datadir.txt  and put ONE folder path below to decide
+# where settings, history, the price database, the licence and logs are kept.
+#
+# Lines starting with # are ignored. Environment variables are expanded.
+# Delete the file to go back to the default ("data" next to the .exe, or
+# %LOCALAPPDATA%\ThaoResearch\data when that is not writable).
+#
+# Examples:
+#   D:\ThaoResearchData
+#   %USERPROFILE%\Documents\ThaoResearch
+

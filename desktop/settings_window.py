@@ -16,14 +16,16 @@ import subprocess
 import sys
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 from typing import Callable, Optional
 
 from core.telegram_bot import TelegramNotifier, validate_chat_id, validate_token  # noqa: F401  (kept for back-compat imports; tab removed)
 from desktop.window_icon import apply_app_icon
 from utils import autostart, i18n, license as license_mod
+from desktop import theme
 from utils.i18n import t
-from utils.paths import APP_ROOT, DATA_DIR, CONFIG_FILE, INIT_CONFIG_FILE
+from utils import paths
+from utils.paths import APP_ROOT
 
 logger = logging.getLogger("thaoresearch.desktop.settings_window")
 
@@ -358,6 +360,7 @@ def build_widget(
         getattr(state, "max_articles_var", None),
         getattr(state, "tz_var", None),
         getattr(state, "lang_var", None),
+        getattr(state, "theme_var", None),
         getattr(state, "toast_var", None),
         getattr(state, "tg_var", None),
         getattr(state, "force_send_var", None),
@@ -503,17 +506,17 @@ def _apply_license_state(state, tab):
         msg = t(msg_key, default="License activated")
         if info.get("valid_to"):
             msg = f"{msg} — {info['valid_to']}"
-        color = "#2E7D32"  # green
+        color = theme.COLORS["success"]  # green
         gated_enabled = True
     elif status == license_mod.STATUS_EXPIRED:
         msg = t("settings.license_status_expired", default="License expired")
         if info and info.get("valid_to"):
             msg = f"{msg} ({info['valid_to']})"
-        color = "#C42B1C"  # red
+        color = theme.COLORS["danger"]  # red
         gated_enabled = False
     else:
         msg = t("settings.license_status_not_activated", default="License not activated")
-        color = "#C42B1C"
+        color = theme.COLORS["danger"]
         gated_enabled = False
 
     try:
@@ -755,13 +758,28 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
         width=10,
     ).grid(row=2, column=1, sticky="w", pady=4)
 
+    ttk.Label(tab, text="Appearance:").grid(row=3, column=0, sticky="w", pady=4)
+    state.theme_var = tk.StringVar(value=general.get("theme", "system"))
+    ttk.Combobox(
+        tab,
+        textvariable=state.theme_var,
+        values=["system", "light", "dark"],
+        state="readonly",
+        width=10,
+    ).grid(row=3, column=1, sticky="w", pady=4)
+    ttk.Label(
+        tab,
+        text="restart to apply",
+        style="Caption.TLabel",
+    ).grid(row=3, column=2, sticky="w", padx=(8, 0))
+
     state.toast_var = tk.BooleanVar(value=general.get("enable_desktop_toast", True))
     state.toast_check = ttk.Checkbutton(
         tab,
         text=t("settings.label_enable_toast"),
         variable=state.toast_var,
     )
-    state.toast_check.grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
+    state.toast_check.grid(row=4, column=0, columnspan=2, sticky="w", pady=4)
 
     state.tg_var = tk.BooleanVar(value=general.get("enable_telegram_alert", True))
     state.tg_check = ttk.Checkbutton(
@@ -769,7 +787,7 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
         text=t("settings.label_enable_telegram"),
         variable=state.tg_var,
     )
-    state.tg_check.grid(row=4, column=0, columnspan=2, sticky="w", pady=4)
+    state.tg_check.grid(row=5, column=0, columnspan=2, sticky="w", pady=4)
 
     # "Force send (bypass duplicate check)" — when ticked, every article
     # that passes the filter is pushed to Telegram + desktop + toast, even
@@ -782,7 +800,7 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
         text=t("settings.label_force_send_duplicates", default="Enable force send (bypass duplicate check)"),
         variable=state.force_send_var,
     )
-    state.force_send_check.grid(row=5, column=0, columnspan=2, sticky="w", pady=4)
+    state.force_send_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=4)
 
     # ------------------------------------------------------------ Init config block
     # Autosave: every other field on this page is wired through the
@@ -798,7 +816,7 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
         text=t("settings.label_autosave_settings", default="Autosave settings (init_config.yaml)"),
         variable=state.autosave_var,
     )
-    state.autosave_check.grid(row=6, column=0, columnspan=2, sticky="w", pady=4)
+    state.autosave_check.grid(row=7, column=0, columnspan=2, sticky="w", pady=4)
 
     # Reflect the user's choice into the autosave gate. We don't write to
     # disk here directly — the toggle is wired separately (below) so the
@@ -821,7 +839,7 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
     # ------------------------------------------------------------ Config file info (shown in About tab instead)
     # NOTE: config_path is displayed in the About tab for clarity.
     ttk.Separator(tab, orient="horizontal").grid(row=12, column=0, columnspan=2, sticky="we", pady=12)
-    ttk.Label(tab, text=t("settings.license_block_title"), font=("Segoe UI", 10, "bold")).grid(
+    ttk.Label(tab, text=t("settings.license_block_title"), font=theme.font("subheading")).grid(
         row=13, column=0, columnspan=2, sticky="w", pady=(0, 4)
     )
 
@@ -831,7 +849,7 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
     state.license_status_label = ttk.Label(
         tab,
         textvariable=state.license_status_var,
-        foreground="#6B6B6B",
+        foreground=theme.COLORS["fg_muted"],
         wraplength=420,
         justify="left",
     )
@@ -868,7 +886,7 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
 
     # ------------------------------------------------------------ Scheduler block
     ttk.Separator(tab, orient="horizontal").grid(row=13, column=0, columnspan=2, sticky="we", pady=12)
-    ttk.Label(tab, text="Scheduler", font=("Segoe UI", 10, "bold")).grid(
+    ttk.Label(tab, text="Scheduler", font=theme.font("subheading")).grid(
         row=14, column=0, columnspan=2, sticky="w", pady=(0, 4)
     )
 
@@ -984,6 +1002,145 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
     state.scheduler_mode_var.trace_add("write", _apply_scheduler_mode)
     # Apply initial state
     _apply_scheduler_mode()
+
+    _build_storage_block(tab, start_row=24)
+
+
+# =============================================================================
+# Storage block — lets the user pick where config / databases / logs live
+# =============================================================================
+def _build_storage_block(tab, start_row: int) -> None:
+    """Data-folder picker.
+
+    This is deliberately NOT part of ``config.yaml``: the data folder is
+    where config.yaml itself lives, so it cannot be stored inside it. The
+    choice goes to a pointer file via ``paths.save_data_dir_choice()`` and
+    takes effect on the next launch.
+    """
+    ttk.Separator(tab, orient="horizontal").grid(
+        row=start_row, column=0, columnspan=3, sticky="ew", pady=(16, 8)
+    )
+    ttk.Label(tab, text="Storage", font=theme.font("subheading")).grid(
+        row=start_row + 1, column=0, sticky="w", pady=(0, 6)
+    )
+
+    ttk.Label(tab, text="Data folder:").grid(row=start_row + 2, column=0, sticky="w", pady=4)
+
+    path_var = tk.StringVar(value=str(paths.DATA_DIR))
+    entry = ttk.Entry(tab, textvariable=path_var, width=46, state="readonly")
+    entry.grid(row=start_row + 2, column=1, sticky="w", pady=4)
+
+    source_labels = {
+        "cli": "set by --data-dir for this run",
+        "env": "set by THAORESEARCH_DATA_DIR",
+        "pointer:portable": "your choice (saved next to the program)",
+        "pointer:user": "your choice (saved in LocalAppData)",
+        "portable": "default: next to the program",
+        "localappdata": "fallback: the program folder is not writable",
+        "temp": "last resort: temporary folder",
+        "unwritable": "no writable location found",
+    }
+    note = ttk.Label(
+        tab,
+        text=source_labels.get(paths.DATA_DIR_SOURCE, paths.DATA_DIR_SOURCE),
+        foreground=theme.COLORS["danger"] if paths.DATA_DIR_FALLBACK else theme.COLORS["fg_muted"],
+    )
+    note.grid(row=start_row + 3, column=1, sticky="w")
+
+    btns = ttk.Frame(tab)
+    btns.grid(row=start_row + 4, column=1, sticky="w", pady=(8, 0))
+
+    def _change_folder():
+        chosen = filedialog.askdirectory(
+            title="Choose a folder for ThaoResearch data",
+            initialdir=str(paths.DATA_DIR if paths.DATA_DIR.exists() else Path.home()),
+            mustexist=False,
+        )
+        if not chosen:
+            return
+        target = Path(chosen)
+
+        if not paths.is_writable(target):
+            messagebox.showerror(
+                "Folder not writable",
+                f"ThaoResearch cannot write to:\n{target}\n\n"
+                "Pick a folder you own, such as one inside Documents.",
+            )
+            return
+
+        # Offer to bring the existing data along, so history and the license
+        # are not silently left behind in the old folder.
+        moved: list[str] = []
+        old = paths.DATA_DIR
+        if old.exists() and old.resolve() != target.resolve():
+            names = [
+                n
+                for n in ("config.yaml", "init_config.yaml", "history.db",
+                          "prices.db", "license.dat")
+                if (old / n).is_file()
+            ]
+            if names and messagebox.askyesno(
+                "Copy existing data?",
+                "Copy your current settings, history and license to the new "
+                f"folder?\n\nFrom: {old}\nTo:   {target}\n\n"
+                f"Files: {', '.join(names)}\n\n"
+                "The originals are left untouched.",
+            ):
+                import shutil
+
+                for n in names:
+                    try:
+                        shutil.copy2(old / n, target / n)
+                        moved.append(n)
+                    except Exception as e:
+                        logger.warning("Could not copy %s: %s", n, e)
+
+        ok, where = paths.save_data_dir_choice(target)
+        if not ok:
+            messagebox.showerror("Could not save the choice", where)
+            return
+
+        path_var.set(str(target))
+        note.configure(text="your choice — restart to apply", foreground=theme.COLORS["success"])
+        tail = f"\n\nCopied: {', '.join(moved)}" if moved else ""
+        messagebox.showinfo(
+            "Data folder changed",
+            f"ThaoResearch will use:\n{target}\n\n"
+            f"Saved in: {where}{tail}\n\n"
+            "Restart the app for this to take effect.",
+        )
+
+    def _reset_folder():
+        removed = paths.clear_data_dir_choice()
+        path_var.set(str(paths.default_portable_dir()))
+        note.configure(text="default — restart to apply", foreground=theme.COLORS["success"])
+        messagebox.showinfo(
+            "Reset to default",
+            "ThaoResearch will go back to its default data folder on the next "
+            "launch.\n\n"
+            + (f"Removed: {', '.join(str(p) for p in removed)}" if removed
+               else "No saved choice was set.")
+            + "\n\nYour files are not deleted.",
+        )
+
+    ttk.Button(btns, text="Change…", command=_change_folder).pack(side="left")
+    ttk.Button(btns, text="Open", command=lambda: _browse_path(paths.DATA_DIR)).pack(
+        side="left", padx=(6, 0)
+    )
+    ttk.Button(btns, text="Reset to default", command=_reset_folder).pack(
+        side="left", padx=(6, 0)
+    )
+
+    if paths.DATA_DIR_FALLBACK:
+        ttk.Label(
+            tab,
+            text=(
+                "Your chosen folder could not be written to, so a fallback is "
+                "in use. Pick another folder."
+            ),
+            foreground=theme.COLORS["danger"],
+            wraplength=430,
+        ).grid(row=start_row + 5, column=1, sticky="w", pady=(8, 0))
 
 
 def _build_sources_tab(notebook, config):
@@ -1319,12 +1476,14 @@ def _build_filters_tab(notebook, config):
 
     ttk.Label(tab, text="High priority keywords (one per line):").pack(anchor="w")
     high_text = tk.Text(tab, height=8, width=60)
+    theme.style_text_widget(high_text)
     high_text.pack(fill="x", pady=4)
     high_text.insert("1.0", "\n".join(filters.get("high_priority_keywords", [])))
     # autosave wiring is done by build_widget after all tabs exist
 
     ttk.Label(tab, text="Blacklist keywords (one per line):").pack(anchor="w", pady=(12, 0))
     black_text = tk.Text(tab, height=8, width=60)
+    theme.style_text_widget(black_text)
     black_text.pack(fill="x", pady=4)
     black_text.insert("1.0", "\n".join(filters.get("blacklist_keywords", [])))
     # autosave wiring is done by build_widget after all tabs exist
@@ -1355,11 +1514,11 @@ def _build_about_tab(notebook, config_path=None, on_change_license=None):
     tab = ttk.Frame(notebook, padding=12)
     notebook.add(tab, text=t("settings.tab_about"))
 
-    ttk.Label(tab, text="ThaoResearch v1.0.0", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+    ttk.Label(tab, text="ThaoResearch v1.0.0", font=theme.font("title")).pack(anchor="w")
     ttk.Label(
         tab,
         text="Commodity News Intelligence & Alerting",
-        foreground="#6B6B6B",
+        foreground=theme.COLORS["fg_muted"],
     ).pack(anchor="w", pady=(0, 12))
 
     # License info used to live here (status line + Change/View License
@@ -1372,17 +1531,17 @@ def _build_about_tab(notebook, config_path=None, on_change_license=None):
     ttk.Label(tab, text="Config files").pack(anchor="w")
     info_frame = ttk.Frame(tab)
     info_frame.pack(anchor="w", pady=(4, 0))
-    ttk.Label(info_frame, text=f"Config: {config_path or CONFIG_FILE}", foreground="#6B6B6B", font=("Segoe UI", 8)).pack(anchor="w")
-    ttk.Label(info_frame, text=f"Data folder: {INIT_CONFIG_FILE.parent}", foreground="#6B6B6B", font=("Segoe UI", 8)).pack(anchor="w")
+    ttk.Label(info_frame, text=f"Config: {config_path or paths.CONFIG_FILE}", foreground=theme.COLORS["fg_muted"], font=theme.font("caption")).pack(anchor="w")
+    ttk.Label(info_frame, text=f"Data folder: {paths.DATA_DIR}  ({paths.DATA_DIR_SOURCE})", foreground=theme.COLORS["fg_muted"], font=theme.font("caption")).pack(anchor="w")
 
     ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=12)
     ttk.Label(tab, text="Quick links").pack(anchor="w")
     link_frame = ttk.Frame(tab)
     link_frame.pack(anchor="w", pady=4)
-    ttk.Button(link_frame, text="Open logs folder", command=lambda: _browse_path(APP_ROOT / "logs")).pack(
+    ttk.Button(link_frame, text="Open logs folder", command=lambda: _browse_path(paths.LOG_DIR)).pack(
         side="left", padx=(0, 8)
     )
-    ttk.Button(link_frame, text="Open data folder", command=lambda: _browse_path(DATA_DIR)).pack(
+    ttk.Button(link_frame, text="Open data folder", command=lambda: _browse_path(paths.DATA_DIR)).pack(
         side="left"
     )
 
@@ -1411,6 +1570,7 @@ def _gather_config(
         "max_articles_per_run": max_articles,
         "timezone": state.tz_var.get().strip(),
         "language": state.lang_var.get(),
+        "theme": state.theme_var.get(),
         "enable_desktop_toast": bool(state.toast_var.get()),
         "enable_telegram_alert": bool(state.tg_var.get()),
         "force_send_duplicates": bool(state.force_send_var.get()),

@@ -1,6 +1,7 @@
 """Tkinter dialog for entering the license key at startup."""
 from __future__ import annotations
 
+from desktop import theme
 import tkinter as tk
 from tkinter import ttk
 from typing import Optional
@@ -30,14 +31,14 @@ class LicenseDialog:
         title = ttk.Label(
             self.window,
             text="Enter your license key",
-            font=("Segoe UI", 14, "bold"),
+            font=theme.font("title"),
         )
         title.pack(pady=(20, 5))
 
         subtitle = ttk.Label(
             self.window,
             text="A valid license is required to use ThaoResearch.",
-            font=("Segoe UI", 9),
+            font=theme.font("body_sm"),
             foreground="#666",
         )
         subtitle.pack(pady=(0, 15))
@@ -51,7 +52,7 @@ class LicenseDialog:
         self.entry.focus()
 
         # Status
-        self.status_label = ttk.Label(self.window, text="", foreground="#C42B1C")
+        self.status_label = ttk.Label(self.window, text="", foreground=theme.COLORS["danger"])
         self.status_label.pack(pady=10)
 
         # Buttons

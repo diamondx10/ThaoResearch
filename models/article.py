@@ -8,14 +8,43 @@ from datetime import datetime
 from typing import List, Optional
 
 # Telegram MarkdownV2 reserved chars (used for escaping)
-_MARKDOWN_SPECIAL = re.compile(r"([_*\[\]()~`>#+\-=|{}.!\\])")
+# Telegram has two incompatible Markdown dialects and they need different
+# escaping:
+#
+#   Markdown (V1)  -- only _ * [ ` are markers. A backslash before anything
+#                     else is shown to the reader as a literal backslash.
+#   MarkdownV2     -- the long list below is reserved and must all be escaped.
+#
+# We send with parse_mode="Markdown" (V1), but this module used to escape with
+# the V2 set, so every alert arrived reading "U\.S\. soybean oil climbed 3\.2%".
+# Keep the two sets apart and use the one that matches the parse mode.
+_MARKDOWN_V1_SPECIAL = re.compile(r"([_*\[`])")
+_MARKDOWN_V2_SPECIAL = re.compile(r"([_*\[\]()~`>#+\-=|{}.!\\])")
 
 
 def _escape_markdown(text: str) -> str:
-    """Escape special characters for Telegram Markdown (V1/v2)."""
+    """Escape text for Telegram ``parse_mode="Markdown"`` (V1)."""
     if not text:
         return ""
-    return _MARKDOWN_SPECIAL.sub(r"\\\1", text)
+    return _MARKDOWN_V1_SPECIAL.sub(r"\\\1", text)
+
+
+def _escape_markdown_v2(text: str) -> str:
+    """Escape text for Telegram ``parse_mode="MarkdownV2"``."""
+    if not text:
+        return ""
+    return _MARKDOWN_V2_SPECIAL.sub(r"\\\1", text)
+
+
+def _collapse_ws(text: str) -> str:
+    """Flatten newlines and runs of spaces into single spaces.
+
+    RSS summaries often arrive with embedded markup and hard wraps; a teaser
+    that keeps them renders as a ragged block on a phone.
+    """
+    if not text:
+        return ""
+    return " ".join(text.split())
 
 
 def _truncate(text: str, max_chars: int) -> str:
@@ -47,55 +76,64 @@ class Article:
         """Return MD5 hash of title + link for deduplication."""
         return hashlib.md5(f"{self.title}{self.link}".encode("utf-8")).hexdigest()
 
-    def to_telegram_message(self) -> str:
-        """Render article as a minimal Telegram message: heading + title + link.
+    # Characters of RSS summary shown in the collapsed teaser. Short enough
+    # to stay readable at a glance on a phone lock screen.
+    TEASER_CHARS = 180
 
-        Format (3 lines):
-            [Commodity] — [Title]
-            Read full article (link)
-
-        The summary snippet is intentionally hidden — user taps the
-        inline `Summary` button to view it on demand.
-        """
-        lines: List[str] = []
-
-        # Heading: "[Tên hàng hóa]" (with optional Urgent tag) — "[Title]"
+    def to_telegram_heading(self) -> str:
+        """The first line: ``*Commodity* (Urgent) - Title``."""
         commodity = self.triggered_commodity or self.source or "News"
         urgent_tag = " (Urgent)" if self.is_urgent else ""
-        lines.append(f"*{_escape_markdown(commodity)}*{urgent_tag} — {_escape_markdown(self.title)}")
+        return (
+            f"*{_escape_markdown(commodity)}*{urgent_tag} "
+            f"— {_escape_markdown(self.title)}"
+        )
 
-        # Link
+    def to_telegram_message(self) -> str:
+        """Render the collapsed teaser: heading, short snippet, link.
+
+        Built to be read on a phone without opening anything:
+
+            *Soybean Oil* (Urgent) - U.S. soybean oil gushes into biofuel...
+            NOPA data showed crush margins widening as renewable diesel...
+            Read full article
+
+        Tapping *Read more* expands the real article body in place -- see
+        ``to_telegram_reply_markup`` and the pager in ``core.telegram_bot``.
+        """
+        lines: List[str] = [self.to_telegram_heading()]
+
+        teaser = _truncate(_collapse_ws(self.summary), self.TEASER_CHARS)
+        if teaser:
+            lines.append("")
+            lines.append(_escape_markdown(teaser))
+
         if self.link:
+            lines.append("")
             lines.append(f"[Read full article]({self.link})")
 
         return "\n".join(lines)
 
     def to_telegram_reply_markup(self, expanded: bool = False):
-        """Inline keyboard for the Telegram message.
+        """Inline keyboard for the collapsed (or freshly expanded) message.
 
-        By default the button label is ``Summary ▼`` — tapping it expands
-        the message inline (no reload, no extra round trip) and swaps the
-        label to ``Summary ▲``.
+        Telegram caps ``callback_data`` at 64 bytes. Ours is
+        ``more:<32-char md5>:<page>`` (about 40 bytes), leaving room for the
+        page index the pager needs.
 
-        When ``expanded=True`` the caller is rendering the post-expand
-        view and we label the button ``Summary ▲`` so the user can
-        collapse the message back down.
-
-        ``callback_data`` must be <= 64 bytes. We prefix the action so
-        the bot dispatcher can branch on ``sum:`` vs ``hide:`` and
-        include the article hash so we can look the row up if needed.
+        The older ``sum:`` / ``hide:`` prefixes are still handled by the
+        callback dispatcher, so messages sent by a previous version keep
+        working after an upgrade.
         """
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
         h = self.compute_hash()
         if expanded:
-            label = "Summary ▲"
-            callback = f"hide:{h}"
-        else:
-            label = "Summary ▼"
-            callback = f"sum:{h}"
+            return InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Read less ▲", callback_data=f"less:{h}")]]
+            )
         return InlineKeyboardMarkup(
-            [[InlineKeyboardButton(label, callback_data=callback)]]
+            [[InlineKeyboardButton("Read more ▼", callback_data=f"more:{h}:0")]]
         )
 
     def to_telegram_summary_text(self) -> str:

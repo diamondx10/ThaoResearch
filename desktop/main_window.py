@@ -20,17 +20,15 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import Any, Callable, Optional
 
+from desktop import theme
 from utils import database, i18n, price_tracker
 from utils.i18n import t
 
 logger = logging.getLogger("thaoresearch.desktop.main_window")
 
 
-CARD_BG = "#FFFFFF"
-CARD_BORDER = "#E0E0E0"
-COLOR_OK = "#2E7D32"
-COLOR_WARN = "#C42B1C"
-COLOR_MUTED = "#6B6B6B"
+# All colours and fonts come from desktop.theme so light and dark stay
+# consistent across every window; nothing here hardcodes a hex code.
 
 
 class MainWindow:
@@ -77,6 +75,9 @@ class MainWindow:
         self.window.title(t("main.title", default="ThaoResearch"))
         self.window.minsize(820, 560)
         self.window.protocol("WM_DELETE_WINDOW", self._on_close)
+        # Theme before _build_ui(): theme.apply() seeds the Tk option
+        # database, which only affects widgets created afterwards.
+        theme.apply(self.window, theme.resolve_mode(config))
         # Set window icon (works both in dev and PyInstaller frozen)
         from desktop.window_icon import apply_app_icon
         self._icon_path = apply_app_icon(self.window)
@@ -178,7 +179,7 @@ class MainWindow:
         status = ttk.Frame(self.window, padding=(10, 4, 10, 8))
         status.pack(fill="x")
         self.status_var = tk.StringVar(value=self._status_text())
-        ttk.Label(status, textvariable=self.status_var, foreground=COLOR_MUTED).pack(side="left")
+        ttk.Label(status, textvariable=self.status_var, foreground=theme.COLORS["fg_muted"]).pack(side="left")
         ttk.Button(status, text=t("common.close", default="Close"), command=self._on_close, width=10).pack(side="right")
 
     def _select_settings_tab(self):
@@ -208,13 +209,13 @@ class MainWindow:
         ttk.Label(
             header,
             text=f"{t('main.title', default='ThaoResearch')}",
-            font=("Segoe UI", 14, "bold"),
+            font=theme.font("title"),
         ).pack(side="left")
         ttk.Label(
             header,
             text="  •  Commodity News Intelligence",
-            foreground="#6B6B6B",
-            font=("Segoe UI", 10),
+            foreground=theme.COLORS["fg_muted"],
+            font=theme.font("body"),
         ).pack(side="left", padx=(4, 0))
 
         self._settings_widget = build_widget(
@@ -354,7 +355,7 @@ class MainWindow:
         progress_row.pack(fill="x")
         progress_row.grid_columnconfigure(1, weight=1)
         self.progress_label = ttk.Label(
-            progress_row, text="", foreground=COLOR_MUTED, width=18, anchor="w",
+            progress_row, text="", foreground=theme.COLORS["fg_muted"], width=18, anchor="w",
         )
         self.progress_label.grid(row=0, column=0, sticky="w", padx=(0, 8))
         self.progress_bar = ttk.Progressbar(
@@ -369,7 +370,7 @@ class MainWindow:
         self._log_label = ttk.Label(
             log_header,
             text=t("main.log_label", default="Recent log (logs/app.log)"),
-            foreground=COLOR_MUTED,
+            foreground=theme.COLORS["fg_muted"],
         )
         self._log_label.pack(side="left", anchor="w")
         self.btn_clear_log = ttk.Button(
@@ -382,7 +383,8 @@ class MainWindow:
 
         log_frame = ttk.Frame(outer)
         log_frame.pack(fill="both", expand=True)
-        self.log_text = tk.Text(log_frame, height=10, wrap="none", font=("Consolas", 9))
+        self.log_text = tk.Text(log_frame, height=10, wrap="none", font=theme.font("mono"))
+        theme.style_text_widget(self.log_text)
         self.log_text.configure(state="disabled")
         log_vsb = ttk.Scrollbar(log_frame, orient="vertical", command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=log_vsb.set)
@@ -409,9 +411,14 @@ class MainWindow:
         # auto-shrink work in the user's favour: when the dashboard
         # shrinks, the log pane shrinks first (since it has no stretch),
         # so the recent-articles list keeps showing new rows.
+        # tk.PanedWindow is a classic widget, not ttk, so the theme engine
+        # never touches it -- left alone it shows a 240,240,240 band across
+        # the dashboard in dark mode.
         self._dashboard_panes = tk.PanedWindow(
-            outer, orient="vertical", sashwidth=6, sashrelief="raised",
+            outer, orient="vertical", sashwidth=6, sashrelief="flat",
             opaqueresize=True, bd=0,
+            background=theme.COLORS["bg"],
+            sashpad=0,
         )
         self._dashboard_panes.pack(fill="both", expand=True)
 
@@ -429,8 +436,9 @@ class MainWindow:
         old_log_text = self.log_text
         old_log_vsb = log_vsb
         self.log_text = tk.Text(
-            log_holder_inner, height=4, wrap="none", font=("Consolas", 9),
+            log_holder_inner, height=4, wrap="none", font=theme.font("mono"),
         )
+        theme.style_text_widget(self.log_text)
         self.log_text.configure(state="disabled")
         self.log_text.pack(in_=log_holder_inner, side="left", fill="both", expand=True)
         new_vsb = ttk.Scrollbar(
@@ -461,7 +469,7 @@ class MainWindow:
         ttk.Label(
             art_header,
             text=t("main.recent_articles", default="Recent Articles"),
-            foreground=COLOR_MUTED,
+            foreground=theme.COLORS["fg_muted"],
         ).pack(side="left", anchor="w")
 
         # Filter + actions row
@@ -530,13 +538,13 @@ class MainWindow:
         # Visual tags — unread = bold + dark text, read = normal weight.
         # The ``link`` tag makes the "Read more…" cell visually distinct
         # and signals that it's clickable.
-        self.articles_tree.tag_configure("unread", font=("Segoe UI", 9, "bold"))
-        self.articles_tree.tag_configure("read", font=("Segoe UI", 9))
-        self.articles_tree.tag_configure("urgent", foreground="#C42B1C")
-        self.articles_tree.tag_configure("price", foreground="#1565C0")
-        self.articles_tree.tag_configure("news", foreground="#1F1F1F")
+        self.articles_tree.tag_configure("unread", font=theme.font("body_sm"))
+        self.articles_tree.tag_configure("read", font=theme.font("body_sm"))
+        self.articles_tree.tag_configure("urgent", foreground=theme.COLORS["danger"])
+        self.articles_tree.tag_configure("price", foreground=theme.COLORS["accent"])
+        self.articles_tree.tag_configure("news", foreground=theme.COLORS["fg"])
         self.articles_tree.tag_configure(
-            "link", foreground="#1565C0", font=("Segoe UI", 9, "underline")
+            "link", foreground=theme.COLORS["accent"], font=theme.font("link")
         )
 
         # Bindings: click toggles read; double-click opens viewer; hover shows
@@ -715,11 +723,11 @@ class MainWindow:
                     self._article_tip,
                     text="",
                     justify="left",
-                    background="#FFF8DC",
-                    foreground="#1F1F1F",
+                    background=theme.COLORS["warning_bg"],
+                    foreground=theme.COLORS["fg"],
                     relief="solid",
                     borderwidth=1,
-                    font=("Segoe UI", 9),
+                    font=theme.font("body_sm"),
                     padx=8,
                     pady=6,
                     wraplength=420,
@@ -997,16 +1005,16 @@ class MainWindow:
                 self._on_fetch_done(err)
 
     def _make_card(self, parent, title, value):
-        frame = tk.Frame(parent, bg=CARD_BG, highlightthickness=1, highlightbackground=CARD_BORDER)
-        ttk.Label(frame, text=title, foreground=COLOR_MUTED, background=CARD_BG).pack(
+        frame = tk.Frame(parent, bg=theme.COLORS["surface"], highlightthickness=1, highlightbackground=theme.COLORS["border"])
+        ttk.Label(frame, text=title, foreground=theme.COLORS["fg_muted"], background=theme.COLORS["surface"]).pack(
             anchor="w", padx=12, pady=(10, 0)
         )
-        val_lbl = ttk.Label(frame, text=value, font=("Segoe UI", 18, "bold"), background=CARD_BG)
+        val_lbl = ttk.Label(frame, text=value, font=theme.font("display"), background=theme.COLORS["surface"])
         val_lbl.pack(anchor="w", padx=12, pady=(0, 2))
         # Optional sub-label rendered below the main value, used by the Next Run
         # card to show the current scheduler mode and slot. Hidden by default.
-        sub_lbl = ttk.Label(frame, text="", foreground=COLOR_MUTED, background=CARD_BG,
-                            font=("Segoe UI", 8))
+        sub_lbl = ttk.Label(frame, text="", foreground=theme.COLORS["fg_muted"], background=theme.COLORS["surface"],
+                            font=theme.font("caption"))
         sub_lbl.pack(anchor="w", padx=12, pady=(0, 10))
         frame._value_label = val_lbl  # type: ignore[attr-defined]
         frame._sub_label = sub_lbl    # type: ignore[attr-defined]

@@ -309,119 +309,333 @@ class TelegramNotifier:
             logger.error("Failed to start Telegram polling: %s", e)
             return False
 
-    async def _on_inline_callback(self, update, context):
-        """Handle `sum:<hash>` / `hide:<hash>` button presses.
+    # ------------------------------------------------------------------
+    # Read more / Read less
+    # ------------------------------------------------------------------
+    # Room for one page of article body. The hard Telegram ceiling is 4096
+    # characters; the heading, the page marker, the link line and Markdown
+    # escaping all come out of the same budget, so we page the body at a
+    # conservative figure and let _compose_reader_view assemble the rest.
+    BODY_PAGE_CHARS = 3000
 
-        Telegram allows exactly ONE `answer()` per callback query. Calling
-        it twice raises `BadRequest: Query is too old` and lets the button
-        spin forever on "Loading...". We therefore:
-        1. For `sum:`: try to show the summary as a popup alert (one shot).
-           If the summary is too long, edit the original message to show
-           the summary inline + a Hide button.
-        2. For `hide:`: remove the inline keyboard entirely.
+    def _paginate(self, body: str) -> List[str]:
+        """Split article text into page-sized chunks, breaking on paragraphs.
+
+        Breaking mid-word (or mid-sentence) reads badly on a phone, so we
+        prefer a paragraph boundary, then a sentence boundary, then a space,
+        and only cut hard when a single paragraph is itself oversized.
+        """
+        body = (body or "").strip()
+        if not body:
+            return []
+        if len(body) <= self.BODY_PAGE_CHARS:
+            return [body]
+
+        pages: List[str] = []
+        rest = body
+        while rest:
+            if len(rest) <= self.BODY_PAGE_CHARS:
+                pages.append(rest.strip())
+                break
+            window = rest[: self.BODY_PAGE_CHARS]
+            cut = window.rfind("\n\n")
+            if cut < self.BODY_PAGE_CHARS // 2:
+                cut = max(window.rfind(". "), window.rfind("! "), window.rfind("? "))
+                cut = cut + 1 if cut > self.BODY_PAGE_CHARS // 3 else -1
+            if cut < 0:
+                cut = window.rfind(" ")
+            if cut <= 0:
+                cut = self.BODY_PAGE_CHARS
+            pages.append(rest[:cut].strip())
+            rest = rest[cut:].lstrip()
+        return [p for p in pages if p]
+
+    def _get_body(self, article_hash: str, row: dict) -> Tuple[str, str]:
+        """Return ``(body_text, origin)`` for the expanded view.
+
+        Order: the cached body from a previous expansion, then a live fetch
+        of the article page, then the RSS summary. ``origin`` is one of
+        ``cache`` / ``fetched`` / ``summary`` / ``none`` and is only used for
+        logging and the page footer.
+        """
+        cached = (row.get("body") or "").strip()
+        if cached:
+            return cached, "cache"
+
+        url = (row.get("url") or "").strip()
+        if url:
+            try:
+                from core.content_fetcher import fetch_full_content
+
+                fetched = fetch_full_content(url, timeout=9.0, max_chars=30000)
+            except Exception as e:
+                logger.warning("full-content fetch raised for %s: %s", url, e)
+                fetched = None
+            if fetched:
+                try:
+                    from utils import database
+
+                    database.save_article_body(article_hash, fetched)
+                except Exception as e:
+                    logger.debug("could not cache article body: %s", e)
+                return fetched.strip(), "fetched"
+
+        summary = (row.get("summary") or "").strip()
+        if summary:
+            return summary, "summary"
+        return "", "none"
+
+    def _compose_reader_view(
+        self,
+        row: dict,
+        body_pages: List[str],
+        page: int,
+        origin: str,
+    ) -> str:
+        """Build the expanded message for one page."""
+        from models.article import _escape_markdown
+
+        total = len(body_pages)
+        page = max(0, min(page, total - 1)) if total else 0
+
+        commodity = (row.get("commodity") or "").strip()
+        title = (row.get("title") or "Article").strip()
+        urgent = " (Urgent)" if row.get("is_urgent") else ""
+        if commodity:
+            heading = (
+                f"*{_escape_markdown(commodity)}*{urgent} "
+                f"— {_escape_markdown(title)}"
+            )
+        else:
+            heading = f"*{_escape_markdown(title)}*{urgent}"
+
+        parts = [heading]
+
+        if total:
+            parts.append("")
+            parts.append(_escape_markdown(body_pages[page]))
+            if total > 1:
+                parts.append("")
+                parts.append(f"_page {page + 1}/{total}_")
+        else:
+            parts.append("")
+            parts.append("_The full text of this article could not be loaded._")
+
+        if origin == "summary" and total:
+            parts.append("")
+            parts.append("_(summary only — the full page could not be read)_")
+
+        link = (row.get("url") or "").strip()
+        if link:
+            parts.append("")
+            parts.append(f"[Read full article]({link})")
+
+        return "\n".join(parts)
+
+    def _reader_reply_markup(self, article_hash: str, page: int, total: int):
+        """Pager + Read less keyboard for the expanded view."""
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        rows = []
+        if total > 1:
+            nav = []
+            if page > 0:
+                nav.append(
+                    InlineKeyboardButton(
+                        "◀ Prev", callback_data=f"more:{article_hash}:{page - 1}"
+                    )
+                )
+            if page < total - 1:
+                nav.append(
+                    InlineKeyboardButton(
+                        "Next ▶", callback_data=f"more:{article_hash}:{page + 1}"
+                    )
+                )
+            if nav:
+                rows.append(nav)
+        rows.append(
+            [InlineKeyboardButton("Read less ▲", callback_data=f"less:{article_hash}")]
+        )
+        return InlineKeyboardMarkup(rows)
+
+    def _compose_teaser_view(self, row: dict) -> str:
+        """Rebuild the collapsed teaser from the stored row."""
+        from models.article import _collapse_ws, _escape_markdown, _truncate
+
+        commodity = (row.get("commodity") or "").strip()
+        title = (row.get("title") or "Article").strip()
+        urgent = " (Urgent)" if row.get("is_urgent") else ""
+        if commodity:
+            heading = (
+                f"*{_escape_markdown(commodity)}*{urgent} "
+                f"— {_escape_markdown(title)}"
+            )
+        else:
+            heading = f"*{_escape_markdown(title)}*{urgent}"
+
+        parts = [heading]
+        teaser = _truncate(_collapse_ws(row.get("summary") or ""), 180)
+        if teaser:
+            parts.append("")
+            parts.append(_escape_markdown(teaser))
+        link = (row.get("url") or "").strip()
+        if link:
+            parts.append("")
+            parts.append(f"[Read full article]({link})")
+        return "\n".join(parts)
+
+    async def _edit(self, query, text: str, markup) -> bool:
+        """Edit a message, retrying without Markdown when parsing fails.
+
+        Telegram rejects the whole edit when Markdown is unbalanced, and
+        article bodies are full of underscores and asterisks. We escape on
+        the way in, but a stray sequence still happens -- plain text is
+        better than a button that does nothing.
+        """
+        try:
+            await query.edit_message_text(
+                text=text[:TELEGRAM_MSG_LIMIT],
+                parse_mode="Markdown",
+                reply_markup=markup,
+                disable_web_page_preview=True,
+            )
+            return True
+        except Exception as e:
+            msg = str(e)
+            if "not modified" in msg.lower():
+                return True  # same page tapped twice; nothing to do
+            logger.debug("edit (markdown) failed: %s - retrying plain", e)
+        try:
+            await query.edit_message_text(
+                text=self._strip_markdown(text)[:TELEGRAM_MSG_LIMIT],
+                reply_markup=markup,
+                disable_web_page_preview=True,
+            )
+            return True
+        except Exception as e2:
+            if "not modified" in str(e2).lower():
+                return True
+            logger.warning("edit (plain) failed: %s", e2)
+            return False
+
+    async def _on_inline_callback(self, update, context):
+        """Handle the Read more / Read less / pager buttons.
+
+        Accepted callback data:
+            ``more:<hash>:<page>``  expand, or move to another page
+            ``less:<hash>``         collapse back to the teaser
+            ``sum:<hash>``          legacy alias for ``more:<hash>:0``
+            ``hide:<hash>``         legacy alias for ``less:<hash>``
+
+        Telegram allows exactly one ``answer()`` per query -- a second call
+        raises ``BadRequest: Query is too old`` and leaves the button
+        spinning on "Loading...", so every path below answers once.
+
+        Expanding may need a live HTTP fetch, which can take seconds, so we
+        answer immediately with a short toast and edit the message
+        afterwards. That keeps the client from timing out the query.
         """
         query = getattr(update, "callback_query", None)
         if query is None:
             return
+
+        answered = False
+
+        async def answer(text: str = "", alert: bool = False) -> None:
+            nonlocal answered
+            if answered:
+                return
+            answered = True
+            try:
+                await query.answer(text=text, show_alert=alert)
+            except Exception:
+                pass
+
         try:
             data = (query.data or "").strip()
-            if not (data.startswith("sum:") or data.startswith("hide:")):
-                return
-            is_expand = data.startswith("sum:")
-            article_hash = data.split(":", 1)[1]
 
-            # Fetch the original row so we can re-render the heading + link.
-            heading = None
-            link = ""
-            summary = ""
+            expand = False
+            page = 0
+            if data.startswith("more:"):
+                parts = data.split(":")
+                article_hash = parts[1] if len(parts) > 1 else ""
+                page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+                expand = True
+            elif data.startswith("sum:"):  # legacy
+                article_hash = data.split(":", 1)[1]
+                expand = True
+            elif data.startswith("less:") or data.startswith("hide:"):
+                article_hash = data.split(":", 1)[1]
+            else:
+                return
+
+            if not article_hash:
+                await answer("Could not identify this article", alert=True)
+                return
+
             try:
                 from utils import database
-                with database.get_cursor() as cur:
-                    cur.execute(
-                        "SELECT article_title, article_url, article_summary "
-                        "FROM sent_articles WHERE article_hash = ? LIMIT 1",
-                        (article_hash,),
-                    )
-                    row = cur.fetchone()
-                if row:
-                    heading = row[0] or "Article"
-                    link = row[1] or ""
-                    summary = (row[2] or "").strip()
+
+                row = database.get_article_row(article_hash)
             except Exception as e:
                 logger.warning("callback DB lookup failed: %s", e)
+                row = None
 
-            original = getattr(query.message, "text", "") or ""
-
-            if is_expand:
-                # Expand: rebuild the message with summary spliced in, and
-                # swap the inline button to "Summary ▲" (callback `hide:`).
-                new_text = self._compose_summary_view(
-                    heading=heading,
-                    original_text=original,
-                    link=link,
-                    summary=summary,
+            if row is None:
+                # The dedup table was cleared, or this message predates it.
+                await answer(
+                    "This article is no longer in the local history.", alert=True
                 )
-                # Try Markdown first; fall back to plain text on edge chars.
-                try:
-                    await query.edit_message_text(
-                        text=new_text[:TELEGRAM_MSG_LIMIT],
-                        parse_mode="Markdown",
-                        reply_markup=self._summary_reply_markup(
-                            article_hash, expanded=True
-                        ),
-                    )
-                except Exception as e:
-                    logger.debug(
-                        "edit_message_text (md) failed: %s — retrying plain", e
-                    )
-                    try:
-                        await query.edit_message_text(
-                            text=self._strip_markdown(new_text)[:TELEGRAM_MSG_LIMIT],
-                            reply_markup=self._summary_reply_markup(
-                                article_hash, expanded=True
-                            ),
-                        )
-                    except Exception as e2:
-                        logger.warning("edit_message_text plain failed: %s", e2)
+                return
+
+            if not expand:
+                await answer()
+                await self._edit(
+                    query,
+                    self._compose_teaser_view(row),
+                    self._reader_markup_collapsed(article_hash),
+                )
+                return
+
+            # Expanding: a cached body is instant, a live fetch is not.
+            needs_fetch = not (row.get("body") or "").strip()
+            if needs_fetch:
+                await answer("Loading the article…")
             else:
-                # Collapse: rebuild the short view (heading + link only),
-                # drop the inline keyboard to "Summary ▼".
-                new_text = self._compose_short_view(
-                    heading=heading, link=link, original_text=original
-                )
-                try:
-                    await query.edit_message_text(
-                        text=new_text[:TELEGRAM_MSG_LIMIT],
-                        parse_mode="Markdown",
-                        reply_markup=self._summary_reply_markup(
-                            article_hash, expanded=False
-                        ),
-                    )
-                except Exception as e:
-                    logger.debug(
-                        "edit_message_text (md) failed: %s — retrying plain", e
-                    )
-                    try:
-                        await query.edit_message_text(
-                            text=self._strip_markdown(new_text)[:TELEGRAM_MSG_LIMIT],
-                            reply_markup=self._summary_reply_markup(
-                                article_hash, expanded=False
-                            ),
-                        )
-                    except Exception as e2:
-                        logger.warning("edit_message_text plain failed: %s", e2)
+                await answer()
 
-            # Single, silent answer — the message itself is already updated.
-            try:
-                await query.answer()
-            except Exception:
-                pass
+            body, origin = await asyncio.get_running_loop().run_in_executor(
+                None, self._get_body, article_hash, row
+            )
+            pages = self._paginate(body)
+            total = len(pages)
+            page = max(0, min(page, total - 1)) if total else 0
+
+            ok = await self._edit(
+                query,
+                self._compose_reader_view(row, pages, page, origin),
+                self._reader_reply_markup(article_hash, page, total),
+            )
+            if not ok and not total:
+                logger.info("no body available for %s", article_hash)
         except Exception as e:
             logger.error("Inline callback failed: %s", e)
-            try:
-                await query.answer(text="Error: could not load summary", show_alert=True)
-            except Exception:
-                pass
+            await answer("Something went wrong loading this article.", alert=True)
+
+    @staticmethod
+    def _reader_markup_collapsed(article_hash: str):
+        """The single ``Read more`` button shown on a collapsed message."""
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        return InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "Read more ▼", callback_data=f"more:{article_hash}:0"
+                    )
+                ]
+            ]
+        )
 
     @staticmethod
     def _strip_markdown(text: str) -> str:

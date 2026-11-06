@@ -12,3 +12,11 @@ win11toast==0.1.0 ; sys_platform == "win32"
 windows-toasts==1.3.1 ; sys_platform == "win32"
 pywin32==306 ; sys_platform == "win32"
 ruamel.yaml==0.18.6
+# Windows has no IANA timezone database, so zoneinfo.ZoneInfo()
+# ('Asia/Ho_Chi_Minh') depends entirely on this package. It was only
+# present transitively via apscheduler/tzlocal; a clean build machine
+# would have produced an exe that dies on the first scheduler tick.
+tzdata==2026.3
+# Windows 11 / WinUI look for the stock ttk widgets. See desktop/theme.py
+# for why this one and not CustomTkinter or ttkbootstrap.
+sv-ttk==2.6.1

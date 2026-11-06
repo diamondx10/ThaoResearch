@@ -12,6 +12,7 @@ from datetime import datetime
 from tkinter import ttk
 from typing import Callable, Optional
 
+from desktop import theme
 from desktop.article_viewer import open_viewer
 from desktop.window_icon import apply_app_icon
 from models.article import Article
@@ -20,9 +21,6 @@ from utils.i18n import t
 
 logger = logging.getLogger("thaoresearch.desktop.history_window")
 
-COLOR_PRICE = "#2E7D32"
-COLOR_URGENT = "#C42B1C"
-COLOR_KEYWORD = "#6B6B6B"
 
 COLUMNS = ("time", "commodity", "status", "title", "source")
 
@@ -30,10 +28,10 @@ COLUMNS = ("time", "commodity", "status", "title", "source")
 def _status_for_row(is_price: int, is_urgent: int) -> tuple:
     """Return (label, color) for the Status column."""
     if is_urgent:
-        return (t("status.urgent"), COLOR_URGENT)
+        return (t("status.urgent"), theme.COLORS["danger"])
     if is_price:
-        return (t("status.price_alert"), COLOR_PRICE)
-    return (t("status.keyword_match"), COLOR_KEYWORD)
+        return (t("status.price_alert"), theme.COLORS["success"])
+    return (t("status.keyword_match"), theme.COLORS["fg_muted"])
 
 
 def _row_to_article(row: tuple) -> Article:
@@ -125,9 +123,9 @@ def build_widget(parent: tk.Misc, on_open_viewer: Optional[Callable[[Article], N
         tree.heading(col, text=label)
         tree.column(col, width=width, anchor=anchor, stretch=(col == "title"))
 
-    tree.tag_configure("urgent", foreground=COLOR_URGENT)
-    tree.tag_configure("price", foreground=COLOR_PRICE)
-    tree.tag_configure("keyword", foreground=COLOR_KEYWORD)
+    tree.tag_configure("urgent", foreground=theme.COLORS["danger"])
+    tree.tag_configure("price", foreground=theme.COLORS["success"])
+    tree.tag_configure("keyword", foreground=theme.COLORS["fg_muted"])
 
     vsb = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=vsb.set)

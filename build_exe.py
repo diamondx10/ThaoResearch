@@ -125,8 +125,20 @@ def _build_args(bypass_license: bool = False) -> list[str]:
         if script_path.exists():
             args += ["--add-data", f"{script_path}{sep}."]
 
+    # sv-ttk ships its theme as .tcl + .png data files that nothing imports,
+    # so PyInstaller's static analysis cannot see them. Without this the exe
+    # starts but falls back to the stock ttk theme.
+    args += ["--collect-data", "sv_ttk"]
+
+    # tzdata is pure data too, and zoneinfo loads it through importlib at
+    # runtime. Missing it means ZoneInfo("Asia/Ho_Chi_Minh") raises on the
+    # first scheduler tick -- on Windows there is no system tz database.
+    args += ["--collect-data", "tzdata"]
+
     # Hidden imports for libraries PyInstaller sometimes misses
     args += [
+        "--hidden-import", "desktop.theme",
+        "--hidden-import", "sv_ttk",
         "--hidden-import", "apscheduler.jobstores.memory",
         "--hidden-import", "apscheduler.executors.pool",
         "--hidden-import", "apscheduler.triggers.interval",
