@@ -98,39 +98,187 @@ def _set_aumid() -> None:
         pass
 
 
+_aumid_registered = False
+
+
+def _register_aumid() -> bool:
+    """Register the AUMID under HKCU so toasts can carry action buttons.
+
+    Windows will only route a toast's button press back to an unpackaged
+    app if the notifier's AUMID is one it recognises. ``InteractableWindowsToaster``
+    otherwise falls back to Command Prompt's AUMID, and the banner then
+    renders with "Command Prompt" as both the app name and the heading --
+    verified on screen, and obviously not shippable.
+
+    Registering is a single per-user registry key (no admin rights, no
+    Start Menu shortcut, nothing outside HKCU):
+
+        HKCU\\SOFTWARE\\Classes\\AppUserModelId\\<AUMID>
+            DisplayName = ThaoResearch
+            IconUri     = ...\\assets\\tray.ico
+
+    Returns True when the app may use the interactive toaster. Best-effort:
+    a locked-down machine that refuses the write just loses the button, not
+    the notification.
+    """
+    global _aumid_registered
+    if _aumid_registered:
+        return True
+    if platform.system() != "Windows":
+        return False
+    try:
+        import winreg
+
+        key_path = rf"SOFTWARE\Classes\AppUserModelId\{AUMID}"
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, key_path) as key:
+            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "ThaoResearch")
+            icon = _icon_path()
+            if icon is not None:
+                winreg.SetValueEx(key, "IconUri", 0, winreg.REG_SZ, str(icon))
+        _aumid_registered = True
+        logger.debug("Registered toast AUMID %s", AUMID)
+        return True
+    except Exception as e:
+        logger.debug("Could not register AUMID (%s); falling back to a plain toast", e)
+        return False
+
+
+def _icon_path():
+    """Absolute path to the tray icon, or None. Works frozen and from source.
+
+    ``_MEIPASS`` is checked too: in a --onefile build the assets are
+    unpacked there, so the icon is still found if the folder beside the
+    .exe is missing or the user moved only the .exe.
+    """
+    import sys
+    from pathlib import Path
+
+    candidates = []
+    try:
+        from utils import paths
+
+        candidates += [
+            paths.ASSETS_DIR / "tray.ico",
+            paths.APP_ROOT / "assets" / "tray.ico",
+        ]
+    except Exception:
+        pass
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "assets" / "tray.ico")
+
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                return candidate.resolve()
+        except Exception:
+            continue
+    return None
+
+
+def unregister_aumid() -> bool:
+    """Remove the HKCU AUMID key. Provided so the app can leave no trace."""
+    try:
+        import winreg
+
+        winreg.DeleteKey(
+            winreg.HKEY_CURRENT_USER, rf"SOFTWARE\Classes\AppUserModelId\{AUMID}"
+        )
+        return True
+    except Exception:
+        return False
+
+
+# WinRT dispatches the activation callback from its own thread and does not
+# hold a strong reference to the Toast, so a toast that goes out of scope
+# stops calling back. Keep the last few alive.
+_live_toasts: "OrderedDict[int, object]" = OrderedDict()
+_LIVE_MAX = 16
+
+
 def _show_with_windows_toasts(title: str, body: str, article: Article, on_click: Optional[Callable[[Article], None]]) -> bool:
-    """Backend 1: windows-toasts (preferred)."""
+    """Backend 1: windows-toasts (preferred).
+
+    When a click handler is supplied we use ``InteractableWindowsToaster``
+    with our own registered AUMID so the banner can carry a "Read more"
+    button, and route both that button and a click on the banner body back
+    to ``on_click``.
+
+    This used to build a plain ``WindowsToaster`` and ignore ``on_click``
+    entirely -- the parameter was accepted, threaded through all four
+    backends, and silently dropped here, so clicking a notification did
+    nothing at all.
+
+    If the AUMID cannot be registered we fall back to the old plain toast:
+    no button, but the notification still appears under the right name.
+    """
     try:
         from windows_toasts import (
+            InteractableWindowsToaster,
             Toast,
+            ToastButton,
             WindowsToaster,
         )
 
         _set_aumid()
 
-        # Default args = Windows auto-assigns an AUMID based on the process.
-        # This is enough for Windows 10/11 to display a toast and group it
-        # under "ThaoResearch" in the Action Center.
-        toaster = WindowsToaster("ThaoResearch")
+        interactive = on_click is not None and _register_aumid()
+
         toast = Toast()
         toast.text_fields = [title, body]
 
-        # No app logo / icon attached — per UX request the toast is
-        # intentionally text-only. Windows still renders a generic
-        # notification icon from the AUMID so users can identify which
-        # app fired the toast.
+        if interactive:
+            toaster = InteractableWindowsToaster("ThaoResearch", notifierAUMID=AUMID)
+            toast.AddAction(ToastButton(_read_more_label(), "readmore"))
+
+            def _activated(args, _article=article, _cb=on_click):
+                # Fires on a WinRT thread. ``on_click`` must therefore be
+                # thread-safe; callers hand us one that only enqueues onto
+                # gui_queue so the window is built on a Tk thread.
+                try:
+                    _cb(_article)
+                except Exception as exc:
+                    logger.debug("Toast activation handler failed: %s", exc)
+
+            toast.on_activated = _activated
+
+            # Hold a reference: WinRT keeps none, and a collected Toast
+            # stops delivering its callback.
+            _live_toasts[id(toast)] = toast
+            while len(_live_toasts) > _LIVE_MAX:
+                _live_toasts.popitem(last=False)
+        else:
+            # Default args = Windows auto-assigns an AUMID based on the
+            # process. Enough to display a toast grouped under
+            # "ThaoResearch", but it cannot carry buttons.
+            toaster = WindowsToaster("ThaoResearch")
 
         # show_toast() returns True on success, None on unverified.
         # We consider both "success" because the OS may suppress the
         # toast for focus/quiet reasons — that's not our bug.
         result = toaster.show_toast(toast)
-        logger.info("Toast shown (windows-toasts): %s", title[:60])
+        logger.info(
+            "Toast shown (windows-toasts, %s): %s",
+            "interactive" if interactive else "plain",
+            title[:60],
+        )
         return result is not False
     except ImportError:
         logger.debug("windows-toasts not installed")
     except Exception as e:
         logger.debug("windows-toasts failed: %s", e)
     return False
+
+
+def _read_more_label() -> str:
+    """Button caption, localized, with a safe English default."""
+    try:
+        from utils.i18n import t
+
+        return t("toast.btn_read_more", default="Read more")
+    except Exception:
+        return "Read more"
 
 
 def _show_with_win11toast(title: str, body: str, article: Article, on_click: Optional[Callable[[Article], None]]) -> bool:

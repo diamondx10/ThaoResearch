@@ -206,5 +206,6 @@
   "storage.reset_body": "다음 실행부터 ThaoResearch가 기본 데이터 폴더로 돌아갑니다.\n\n{detail}\n\n파일은 삭제되지 않습니다.",
   "storage.reset_removed": "삭제됨: {paths}",
   "storage.reset_none": "저장된 선택이 없습니다.",
-  "storage.fallback_warning": "선택한 폴더에 쓸 수 없어 대체 폴더를 사용 중입니다. 다른 폴더를 선택하세요."
+  "storage.fallback_warning": "선택한 폴더에 쓸 수 없어 대체 폴더를 사용 중입니다. 다른 폴더를 선택하세요.",
+  "toast.btn_read_more": "자세히 보기"
 }

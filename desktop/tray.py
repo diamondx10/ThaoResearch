@@ -198,11 +198,19 @@ class TrayApp:
 
         try:
             if etype == "new_article":
-                # Show a toast (in background) and let user click tray to view next
+                # Show a toast carrying a "Read more" button.
                 from desktop.toast import show_toast
 
                 try:
-                    show_toast(payload, on_click=lambda a: self._open_article_window(a))
+                    # The handler runs on a WinRT thread when the user
+                    # presses the button, so it must NOT build the window
+                    # itself -- Tk may only be touched from the thread that
+                    # owns the root. Enqueue instead and let this tray's own
+                    # Tk poll loop pick it up and open the viewer below.
+                    show_toast(
+                        payload,
+                        on_click=lambda a: gui_queue.put(("open_viewer", a)),
+                    )
                 except Exception:
                     pass
             elif etype == "open_viewer":

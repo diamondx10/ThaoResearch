@@ -206,5 +206,6 @@
   "storage.reset_body": "Lần chạy tới ThaoResearch sẽ quay lại thư mục dữ liệu mặc định.\n\n{detail}\n\nCác tệp của bạn không bị xoá.",
   "storage.reset_removed": "Đã xoá: {paths}",
   "storage.reset_none": "Chưa có lựa chọn nào được lưu.",
-  "storage.fallback_warning": "Thư mục bạn chọn không ghi được nên đang dùng thư mục dự phòng. Hãy chọn thư mục khác."
+  "storage.fallback_warning": "Thư mục bạn chọn không ghi được nên đang dùng thư mục dự phòng. Hãy chọn thư mục khác.",
+  "toast.btn_read_more": "Đọc tiếp"
 }

@@ -206,5 +206,6 @@
   "storage.reset_body": "ThaoResearch will go back to its default data folder on the next launch.\n\n{detail}\n\nYour files are not deleted.",
   "storage.reset_removed": "Removed: {paths}",
   "storage.reset_none": "No saved choice was set.",
-  "storage.fallback_warning": "Your chosen folder could not be written to, so a fallback is in use. Pick another folder."
+  "storage.fallback_warning": "Your chosen folder could not be written to, so a fallback is in use. Pick another folder.",
+  "toast.btn_read_more": "Read more"
 }
