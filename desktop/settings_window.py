@@ -765,10 +765,42 @@ def _scrollable_page(notebook, title: str) -> ttk.Frame:
             return  # nothing to scroll; let the event through
         canvas.yview_scroll(-1 * (event.delta // 120), "units")
 
+    def _wheel_over_control(event):
+        """Scroll the page instead of changing the value under the cursor.
+
+        Tk delivers <MouseWheel> to the widget under the pointer and runs
+        the widget and class bindings BEFORE the ``all`` binding used for
+        scrolling. So a scroll that merely passes over the interval
+        Spinbox would scroll the page and silently decrement the value --
+        the user's fetch interval changed by scrolling past it. Returning
+        "break" aborts the remaining bindtags, which drops both the class
+        binding that edits the value and the ``all`` binding, so the page
+        scrolls exactly once here and nothing is modified.
+        """
+        _on_wheel(event)
+        return "break"
+
+    _tamed: set = set()
+
+    def _tame_controls(widget=None):
+        """Bind the handler above on every value control inside the page."""
+        widget = body if widget is None else widget
+        for child in widget.winfo_children():
+            if isinstance(child, (ttk.Spinbox, ttk.Combobox)):
+                key = str(child)
+                if key not in _tamed:
+                    child.bind("<MouseWheel>", _wheel_over_control)
+                    _tamed.add(key)
+            _tame_controls(child)
+
     # Bind while the pointer is over this page only. ``bind_all`` left
     # permanently in place would steal the wheel from every other widget
     # in the app, including the Treeviews on the sibling tabs.
-    canvas.bind("<Enter>", lambda _e: canvas.bind_all("<MouseWheel>", _on_wheel))
+    def _enter(_event):
+        _tame_controls()  # children exist by now; idempotent
+        canvas.bind_all("<MouseWheel>", _on_wheel)
+
+    canvas.bind("<Enter>", _enter)
     canvas.bind("<Leave>", lambda _e: canvas.unbind_all("<MouseWheel>"))
 
     return body
