@@ -166,5 +166,18 @@
   "main.status_running": "실행 중…",
   "main.status_done": "완료",
   "main.status_error": "오류",
-  "main.status_no_handler": "처리기 없음"
+  "main.status_no_handler": "처리기 없음",
+  "settings.label_appearance": "테마:",
+  "settings.hint_restart_to_apply": "다시 시작해야 적용됨",
+  "settings.scheduler_block_title": "스케줄러",
+  "settings.label_scheduler_mode": "모드:",
+  "settings.label_fixed_interval": "고정 간격(분):",
+  "settings.label_adaptive_business": "평일 업무 시간(분):",
+  "settings.label_adaptive_evening": "평일 저녁(분):",
+  "settings.label_adaptive_weekend": "주말(분):",
+  "settings.label_adaptive_off_weekend": "주말에 끄기:",
+  "settings.label_adaptive_start_hour": "업무 시작 시각(0-23):",
+  "settings.label_adaptive_end_hour": "업무 종료 시각(0-23):",
+  "settings.storage_block_title": "저장소",
+  "settings.label_data_folder": "데이터 폴더:"
 }

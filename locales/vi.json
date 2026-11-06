@@ -166,5 +166,18 @@
   "main.status_running": "Đang chạy…",
   "main.status_done": "Xong",
   "main.status_error": "Lỗi",
-  "main.status_no_handler": "Không có trình xử lý"
+  "main.status_no_handler": "Không có trình xử lý",
+  "settings.label_appearance": "Giao diện:",
+  "settings.hint_restart_to_apply": "khởi động lại để áp dụng",
+  "settings.scheduler_block_title": "Bộ hẹn giờ",
+  "settings.label_scheduler_mode": "Chế độ:",
+  "settings.label_fixed_interval": "Chu kỳ cố định (phút):",
+  "settings.label_adaptive_business": "Giờ hành chính trong tuần (phút):",
+  "settings.label_adaptive_evening": "Buổi tối trong tuần (phút):",
+  "settings.label_adaptive_weekend": "Cuối tuần (phút):",
+  "settings.label_adaptive_off_weekend": "Tắt vào cuối tuần:",
+  "settings.label_adaptive_start_hour": "Giờ bắt đầu (0-23):",
+  "settings.label_adaptive_end_hour": "Giờ kết thúc (0-23):",
+  "settings.storage_block_title": "Lưu trữ",
+  "settings.label_data_folder": "Thư mục dữ liệu:"
 }

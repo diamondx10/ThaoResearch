@@ -758,7 +758,9 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
         width=10,
     ).grid(row=2, column=1, sticky="w", pady=4)
 
-    ttk.Label(tab, text="Appearance:").grid(row=3, column=0, sticky="w", pady=4)
+    ttk.Label(tab, text=t("settings.label_appearance", default="Appearance:")).grid(
+        row=3, column=0, sticky="w", pady=4
+    )
     state.theme_var = tk.StringVar(value=general.get("theme", "system"))
     ttk.Combobox(
         tab,
@@ -769,7 +771,7 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
     ).grid(row=3, column=1, sticky="w", pady=4)
     ttk.Label(
         tab,
-        text="restart to apply",
+        text=t("settings.hint_restart_to_apply", default="restart to apply"),
         style="Caption.TLabel",
     ).grid(row=3, column=2, sticky="w", padx=(8, 0))
 
@@ -833,14 +835,23 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
     # Autostart changes are applied via _persist_config (autostart module),
     # not via autosave, so we wire a manual-save-only trace here.
     ttk.Checkbutton(tab, text=t("settings.label_enable_autostart"), variable=state.autostart_var).grid(
-        row=7, column=0, columnspan=2, sticky="w", pady=4
+        row=8, column=0, columnspan=2, sticky="w", pady=4
     )
 
-    # ------------------------------------------------------------ Config file info (shown in About tab instead)
+    # ------------------------------------------------------------ License block
+    # Rows here are consecutive on purpose. ``grid`` silently stacks two
+    # widgets that claim the same cell, so a duplicated row number is not
+    # an error -- it renders as overlapping text. This block used to put
+    # its separator on row 12 (under the "view license" button) and its
+    # heading on row 13 (under the scheduler separator, which struck the
+    # word "License" through), while the autostart checkbox shared row 7
+    # with the autosave one. Keep the numbering below gap-free and in
+    # visual order so a stray reuse is obvious.
+    #
     # NOTE: config_path is displayed in the About tab for clarity.
-    ttk.Separator(tab, orient="horizontal").grid(row=12, column=0, columnspan=2, sticky="we", pady=12)
+    ttk.Separator(tab, orient="horizontal").grid(row=9, column=0, columnspan=2, sticky="we", pady=12)
     ttk.Label(tab, text=t("settings.license_block_title"), font=theme.font("subheading")).grid(
-        row=13, column=0, columnspan=2, sticky="w", pady=(0, 4)
+        row=10, column=0, columnspan=2, sticky="w", pady=(0, 4)
     )
 
     # Status line — coloured. Lives on its own row so it can wrap if the
@@ -853,11 +864,11 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
         wraplength=420,
         justify="left",
     )
-    state.license_status_label.grid(row=10, column=0, columnspan=2, sticky="w", pady=(0, 6))
+    state.license_status_label.grid(row=11, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
-    ttk.Label(tab, text=t("settings.label_license_key")).grid(row=11, column=0, sticky="w", pady=4)
+    ttk.Label(tab, text=t("settings.label_license_key")).grid(row=12, column=0, sticky="w", pady=4)
     license_input_frame = ttk.Frame(tab)
-    license_input_frame.grid(row=11, column=1, sticky="w", pady=4)
+    license_input_frame.grid(row=12, column=1, sticky="w", pady=4)
     state.license_key_var = tk.StringVar()
     # Autosave trace is wired by build_widget AFTER every tab is
     # instantiated — we just stash the StringVar here.
@@ -878,19 +889,23 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
         command=lambda: _show_license_info(tab),
         width=22,
     )
-    state.license_view_btn.grid(row=12, column=1, sticky="w", pady=4)
+    state.license_view_btn.grid(row=13, column=1, sticky="w", pady=4)
 
     # Apply initial license state — gates the 2 checkboxes above and
     # updates the status label.
     _apply_license_state(state, tab)
 
     # ------------------------------------------------------------ Scheduler block
-    ttk.Separator(tab, orient="horizontal").grid(row=13, column=0, columnspan=2, sticky="we", pady=12)
-    ttk.Label(tab, text="Scheduler", font=theme.font("subheading")).grid(
-        row=14, column=0, columnspan=2, sticky="w", pady=(0, 4)
-    )
+    ttk.Separator(tab, orient="horizontal").grid(row=14, column=0, columnspan=2, sticky="we", pady=12)
+    ttk.Label(
+        tab,
+        text=t("settings.scheduler_block_title", default="Scheduler"),
+        font=theme.font("subheading"),
+    ).grid(row=15, column=0, columnspan=2, sticky="w", pady=(0, 4))
 
-    ttk.Label(tab, text="Mode:").grid(row=15, column=0, sticky="w", pady=4)
+    ttk.Label(tab, text=t("settings.label_scheduler_mode", default="Mode:")).grid(
+        row=16, column=0, sticky="w", pady=4
+    )
     state.scheduler_mode_var = tk.StringVar(value=scheduler.get("mode", "fixed"))
     scheduler_mode_combo = ttk.Combobox(
         tab,
@@ -899,21 +914,23 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
         state="readonly",
         width=15,
     )
-    scheduler_mode_combo.grid(row=15, column=1, sticky="w", pady=4)
+    scheduler_mode_combo.grid(row=16, column=1, sticky="w", pady=4)
 
     # -------------------- Fixed interval sub-block (only when mode = fixed) ----
-    state.fixed_interval_label = ttk.Label(tab, text="Fixed interval (minutes):")
-    state.fixed_interval_label.grid(row=16, column=0, sticky="w", pady=4)
+    state.fixed_interval_label = ttk.Label(
+        tab, text=t("settings.label_fixed_interval", default="Fixed interval (minutes):")
+    )
+    state.fixed_interval_label.grid(row=17, column=0, sticky="w", pady=4)
     state.fixed_interval_var = tk.StringVar(value=str(scheduler.get("fixed_interval_minutes", 1)))
     state.fixed_interval_spin = ttk.Spinbox(
         tab, from_=1, to=1440, textvariable=state.fixed_interval_var, width=10
     )
-    state.fixed_interval_spin.grid(row=16, column=1, sticky="w", pady=4)
+    state.fixed_interval_spin.grid(row=17, column=1, sticky="w", pady=4)
 
     # -------------------- Adaptive sub-block (only when mode = adaptive) -------
-    ttk.Separator(tab, orient="horizontal").grid(row=17, column=0, columnspan=2, sticky="we", pady=(8, 4))
+    ttk.Separator(tab, orient="horizontal").grid(row=18, column=0, columnspan=2, sticky="we", pady=(8, 4))
 
-    state.adaptive_widgets = []  # rows 18.. we'll attach widgets to enable/disable together
+    state.adaptive_widgets = []  # rows 19.. we'll attach widgets to enable/disable together
 
     def _add_adaptive_row(row, label_text, var, kind="int", **kwargs):
         """
@@ -953,12 +970,42 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
 
     # (autosave traces are wired by build_widget after all tabs exist)
 
-    _add_adaptive_row(18, "Weekday business hours (min):", state.adaptive_business_hours_var, "int")
-    _add_adaptive_row(19, "Weekday evening (min):", state.adaptive_evening_var, "int")
-    _add_adaptive_row(20, "Weekend (min):", state.adaptive_weekend_var, "int")
-    _add_adaptive_row(21, "Off on weekend:", state.adaptive_off_weekend_var, "bool")
-    _add_adaptive_row(22, "Business hours start (0-23):", state.adaptive_start_hour_var, "hour")
-    _add_adaptive_row(23, "Business hours end (0-23):", state.adaptive_end_hour_var, "hour")
+    _add_adaptive_row(
+        19,
+        t("settings.label_adaptive_business", default="Weekday business hours (min):"),
+        state.adaptive_business_hours_var,
+        "int",
+    )
+    _add_adaptive_row(
+        20,
+        t("settings.label_adaptive_evening", default="Weekday evening (min):"),
+        state.adaptive_evening_var,
+        "int",
+    )
+    _add_adaptive_row(
+        21,
+        t("settings.label_adaptive_weekend", default="Weekend (min):"),
+        state.adaptive_weekend_var,
+        "int",
+    )
+    _add_adaptive_row(
+        22,
+        t("settings.label_adaptive_off_weekend", default="Off on weekend:"),
+        state.adaptive_off_weekend_var,
+        "bool",
+    )
+    _add_adaptive_row(
+        23,
+        t("settings.label_adaptive_start_hour", default="Business hours start (0-23):"),
+        state.adaptive_start_hour_var,
+        "hour",
+    )
+    _add_adaptive_row(
+        24,
+        t("settings.label_adaptive_end_hour", default="Business hours end (0-23):"),
+        state.adaptive_end_hour_var,
+        "hour",
+    )
 
     def _apply_scheduler_mode(*_args):
         """Enable/disable sub-blocks based on the selected scheduler mode."""
@@ -1003,7 +1050,7 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
     # Apply initial state
     _apply_scheduler_mode()
 
-    _build_storage_block(tab, start_row=24)
+    _build_storage_block(tab, start_row=25)
 
 
 # =============================================================================
@@ -1020,11 +1067,17 @@ def _build_storage_block(tab, start_row: int) -> None:
     ttk.Separator(tab, orient="horizontal").grid(
         row=start_row, column=0, columnspan=3, sticky="ew", pady=(16, 8)
     )
-    ttk.Label(tab, text="Storage", font=theme.font("subheading")).grid(
+    ttk.Label(
+        tab,
+        text=t("settings.storage_block_title", default="Storage"),
+        font=theme.font("subheading"),
+    ).grid(
         row=start_row + 1, column=0, sticky="w", pady=(0, 6)
     )
 
-    ttk.Label(tab, text="Data folder:").grid(row=start_row + 2, column=0, sticky="w", pady=4)
+    ttk.Label(tab, text=t("settings.label_data_folder", default="Data folder:")).grid(
+        row=start_row + 2, column=0, sticky="w", pady=4
+    )
 
     path_var = tk.StringVar(value=str(paths.DATA_DIR))
     entry = ttk.Entry(tab, textvariable=path_var, width=46, state="readonly")

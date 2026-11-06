@@ -166,5 +166,18 @@
   "main.fetch_failed": "Fetch failed: {err}",
   "viewer.commodity_label": "Commodity:",
   "viewer.status_label": "Status:",
-  "viewer.no_summary": "(No summary available for this article. Use “Open in browser” to read the original.)"
+  "viewer.no_summary": "(No summary available for this article. Use “Open in browser” to read the original.)",
+  "settings.label_appearance": "Appearance:",
+  "settings.hint_restart_to_apply": "restart to apply",
+  "settings.scheduler_block_title": "Scheduler",
+  "settings.label_scheduler_mode": "Mode:",
+  "settings.label_fixed_interval": "Fixed interval (minutes):",
+  "settings.label_adaptive_business": "Weekday business hours (min):",
+  "settings.label_adaptive_evening": "Weekday evening (min):",
+  "settings.label_adaptive_weekend": "Weekend (min):",
+  "settings.label_adaptive_off_weekend": "Off on weekend:",
+  "settings.label_adaptive_start_hour": "Business hours start (0-23):",
+  "settings.label_adaptive_end_hour": "Business hours end (0-23):",
+  "settings.storage_block_title": "Storage",
+  "settings.label_data_folder": "Data folder:"
 }
