@@ -4,6 +4,7 @@
 # where settings, history, the price database, the licence and logs are kept.
 #
 # Lines starting with # are ignored. Environment variables are expanded.
+# Saving this from Notepad adds a UTF-8 BOM; that is fine, the app strips it.
 # Delete the file to go back to the default ("data" next to the .exe, or
 # %LOCALAPPDATA%\ThaoResearch\data when that is not writable).
 #

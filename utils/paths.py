@@ -183,16 +183,37 @@ def _temp_dir() -> Path:
 
 
 def _read_pointer(pointer: Path) -> Path | None:
-    """Read a one-line pointer file. Returns None when absent or unusable."""
+    """Read a one-line pointer file. Returns None when absent or unusable.
+
+    Decoded as ``utf-8-sig``: Notepad and PowerShell's ``Set-Content -Encoding
+    utf8`` both prepend a UTF-8 BOM, and with plain ``utf-8`` the BOM lands on
+    the first character. ``"﻿# comment".startswith("#")`` is False, so the
+    comment line was being handed back as the user's data folder.
+
+    Validated before returning: a path with characters Windows forbids is
+    treated as no pointer at all rather than passed on to mkdir().
+    """
     try:
         if not pointer.is_file():
             return None
-        for raw in pointer.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if line and not line.startswith("#"):
-                return Path(os.path.expandvars(line)).expanduser()
+        text = pointer.read_text(encoding="utf-8-sig")
     except Exception:
-        pass
+        return None
+
+    for raw in text.splitlines():
+        line = raw.strip().lstrip("﻿").strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            candidate = Path(os.path.expandvars(line)).expanduser()
+        except Exception:
+            return None
+        # Reject the characters Windows will not accept in a path. The drive
+        # colon is legitimate, so only look past it.
+        tail = str(candidate)[2:] if len(str(candidate)) > 2 else str(candidate)
+        if any(ch in tail for ch in '<>"|?*') or ":" in tail:
+            return None
+        return candidate
     return None
 
 

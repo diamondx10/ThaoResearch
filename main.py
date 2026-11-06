@@ -1077,19 +1077,11 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
         except Exception as e:
             logger_.exception("Tray thread crashed: %s", e)
 
-    # NOTE ON ORDERING -- this is load-bearing.
-    #
-    # TrayApp.start_blocking() spawns its own "tk-gui" thread which creates a
-    # SECOND tk.Tk() root and withdraws it (see desktop/tray.py). Starting the
-    # tray before MainWindow meant two Tk interpreters were being created
-    # concurrently on two threads, and which one won the race decided whether
-    # the main window ever mapped. In a PyInstaller build the tray thread
-    # consistently won and the app started with NO visible window at all --
-    # the process ran, the scheduler ticked, and the user saw nothing. Dev
-    # runs happened to lose the race and looked fine, which is exactly the
-    # "works on my machine" shape of the bug.
-    #
-    # Create MainWindow's root on the main thread FIRST, then start the tray.
+    # Ordering: build MainWindow's Tk root on the main thread before starting
+    # the tray thread, which creates a second tk.Tk() of its own (see
+    # TrayApp._start_tk_loop). Two Tk interpreters being constructed
+    # concurrently on two threads is worth avoiding on principle, and this
+    # matches what the comment above already said the design was.
     logger_.debug("creating MainWindow (main thread) before the tray thread")
 
     # Build and run MainWindow on the main thread
