@@ -1122,18 +1122,34 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
     # Wire gui_queue dispatch for events that should be handled by the main window
     # (toast notifications, status refresh, etc.). The MainWindow's own _refresh_dashboard
     # already runs on after(); we just need to forward "new_article" to it as a toast.
+    #
+    # This MUST be a real subscriber. gui_queue is a broadcast queue: ``put()``
+    # copies the event to every handle returned by ``subscribe()``, and the
+    # legacy module-level ``gui_queue.get()`` only ever reads a fallback queue
+    # that is written *when there are no subscribers at all*. The tray
+    # subscribes during startup, so that fallback stays empty forever and the
+    # legacy get() this loop used to call returned None on every tick. Every
+    # event below was therefore dead code -- including "shutdown", whose
+    # handler is the only thing that destroys the window. Closing the app ran
+    # exit_app (stopping the scheduler, Telegram and tray) but never ended the
+    # Tk mainloop, so the process stayed alive with its threads running.
+    gui_sub = gui_queue.subscribe("run_gui")
+
     def _dispatch(etype, payload):
+        # Deliberately NOT handled here, because the tray subscriber already
+        # owns them and every subscriber now receives a copy of every event:
+        #
+        #   "new_article"  -> the tray fires the toast. Firing it here too
+        #                     would rely on show_toast's dedup window to
+        #                     swallow the second banner. The MainWindow's own
+        #                     subscriber still adds the article to the recent
+        #                     list, so nothing is lost.
+        #   "open_viewer"  -> the tray opens the ArticleViewer. Handling it
+        #                     here would call open_article(), which puts
+        #                     ("open_viewer", ...) straight back on the queue
+        #                     and feeds itself forever.
         try:
-            if etype == "new_article":
-                # Show toast in background; user can click to open viewer.
-                from desktop.toast import show_toast
-                try:
-                    show_toast(payload, on_click=open_article)
-                except Exception:
-                    pass
-            elif etype == "open_viewer":
-                open_article(payload)
-            elif etype == "status":
+            if etype == "status":
                 main_window._refresh_dashboard()  # type: ignore[attr-defined]
             elif etype == "loop_state":
                 # payload is bool: True=running, False=paused
@@ -1142,6 +1158,14 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
                 except Exception:
                     pass
             elif etype == "shutdown":
+                # quit() first: it ends mainloop() even if destroy() then
+                # trips over a half-torn-down child (an open Settings or
+                # Article Toplevel). destroy() alone would leave the loop
+                # spinning if it raised.
+                try:
+                    main_window.window.quit()
+                except Exception:
+                    pass
                 try:
                     main_window.window.destroy()
                 except Exception:
@@ -1154,9 +1178,13 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
             logger_.exception("Dispatch error %s: %s", etype, e)
 
     def _poll_queue():
+        # drain() is non-blocking. The old code called gui_queue.get(timeout=0.2),
+        # which would have stalled the Tk thread for 0.2s on every tick had it
+        # ever had anything to wait on.
         try:
-            event = gui_queue.get(timeout=0.2)
-            if event is not None:
+            for event in gui_sub.drain():
+                if not event:
+                    continue
                 etype, payload = event
                 _dispatch(etype, payload)
         except Exception as e:
@@ -1186,7 +1214,52 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
             tray.stop()
         except Exception:
             pass
+        try:
+            from utils.database import close_all_connections
+            from utils.price_tracker import close_all_connections as close_price_conns
+            close_all_connections()
+            close_price_conns()
+        except Exception:
+            pass
+        _force_exit_if_stuck(logger_)
     return 0
+
+
+def _force_exit_if_stuck(logger_, grace_sec: float = 5.0) -> None:
+    """Guarantee the process actually dies after the window closes.
+
+    Every worker we start is a daemon thread, so a clean interpreter exit
+    should be enough. But the shutdown path runs through third-party code we
+    do not control -- pystray's Win32 message loop, APScheduler's executor,
+    and the Telegram library's asyncio loop -- and any of them can wedge on a
+    socket or a pending job and leave the process resident. The user's
+    complaint was precisely that: the window disappears while the crawler and
+    the notifications keep running.
+
+    So: start a daemon timer, give the normal exit ``grace_sec`` to happen,
+    and if we are still alive after that, leave via ``os._exit``. Logging is
+    flushed first, and the databases are closed by the caller before this
+    runs, so nothing of value is lost.
+    """
+    def _reaper():
+        time.sleep(grace_sec)
+        alive = [
+            th.name
+            for th in threading.enumerate()
+            if th.is_alive() and th is not threading.current_thread()
+            and th is not threading.main_thread()
+        ]
+        try:
+            logger_.warning(
+                "Shutdown did not complete in %.0fs (threads still up: %s) - forcing exit.",
+                grace_sec, ", ".join(alive) or "none",
+            )
+            logging.shutdown()
+        except Exception:
+            pass
+        os._exit(0)
+
+    threading.Thread(target=_reaper, daemon=True, name="shutdown-reaper").start()
 
 
 # =============================================================================
