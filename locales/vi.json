@@ -147,5 +147,20 @@
   "main.btn_refresh": "Làm mới",
   "main.log_label": "Nhật ký gần đây (logs/app.log)",
   "main.exit_title": "Thoát ThaoResearch?",
-  "main.exit_confirm": "Hành động này sẽ dừng scheduler và cảnh báo Telegram. Tiếp tục?"
+  "main.exit_confirm": "Hành động này sẽ dừng scheduler và cảnh báo Telegram. Tiếp tục?",
+  "main.title": "ThaoResearch",
+  "main.tab_dashboard": "Tổng quan",
+  "main.tab_settings": "Cài đặt",
+  "main.tab_history": "Lịch sử",
+  "main.status_ready": "Sẵn sàng",
+  "main.lang": "Ngôn ngữ",
+  "main.config": "Cấu hình",
+  "main.saved_indicator": "Đã lưu",
+  "main.fetch_progress": "Đang lấy tin…",
+  "main.fetch_progress_auto": "Đang tự động lấy tin… (bộ hẹn giờ)",
+  "main.fetch_done": "Lấy tin xong",
+  "main.fetch_failed": "Lấy tin thất bại: {err}",
+  "viewer.commodity_label": "Hàng hóa:",
+  "viewer.status_label": "Trạng thái:",
+  "viewer.no_summary": "(Bài này chưa có tóm tắt. Bấm “Mở trong trình duyệt” để đọc bài gốc.)"
 }

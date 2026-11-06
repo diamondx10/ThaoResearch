@@ -87,13 +87,28 @@ def get_language() -> str:
 
 
 def t(key: str, **kwargs) -> str:
-    """Translate a key. Falls back to English, then to the key itself.
+    """Translate a key. Falls back to English, then to ``default``, then to
+    the key itself.
+
+    ``default`` is the caller's own English fallback text. Around 50 call
+    sites already pass it -- ``t("main.title", default="ThaoResearch")`` --
+    so it must be honoured rather than forwarded to ``str.format``:
+    without this, a key missing from every locale file renders the raw
+    dotted key in the UI (a real bug: the Dashboard progress label read
+    "main.fetch_progress_auto"). It is popped out of ``kwargs`` so it can
+    never be mistaken for a format placeholder.
 
     >>> t("common.ok")
     'OK'
     >>> t("toast.title_alert", commodity="Gold", status="Price Alert")
     'ThaoResearch - Gold Price Alert'
+    >>> t("no.such.key", default="Fallback")
+    'Fallback'
+    >>> t("no.such.key")
+    'no.such.key'
     """
+    default = kwargs.pop("default", None)
+
     with _lock:
         data = _cache.get(_current_lang)
         if data is None:
@@ -108,8 +123,11 @@ def t(key: str, **kwargs) -> str:
         val = en.get(key) if en else None
 
     if val is None:
-        # Last resort: return the key itself
-        return key
+        # The caller's own fallback, else the key itself. Falling through
+        # to the same ``format`` below keeps a default like
+        # "Fetch failed: {err}" intact when the call site formats it later
+        # (the KeyError is caught and the raw string handed back).
+        val = default if default is not None else key
 
     try:
         return val.format(**kwargs)

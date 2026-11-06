@@ -159,5 +159,12 @@
   "main.config": "Config",
   "main.saved_indicator": "Saved",
   "main.exit_title": "Exit ThaoResearch?",
-  "main.exit_confirm": "This will stop the scheduler and Telegram alerts. Continue?"
+  "main.exit_confirm": "This will stop the scheduler and Telegram alerts. Continue?",
+  "main.fetch_progress": "Fetching…",
+  "main.fetch_progress_auto": "Auto-fetching… (scheduler)",
+  "main.fetch_done": "Fetch complete",
+  "main.fetch_failed": "Fetch failed: {err}",
+  "viewer.commodity_label": "Commodity:",
+  "viewer.status_label": "Status:",
+  "viewer.no_summary": "(No summary available for this article. Use “Open in browser” to read the original.)"
 }

@@ -147,5 +147,20 @@
   "main.btn_refresh": "새로 고침",
   "main.log_label": "최근 로그 (logs/app.log)",
   "main.exit_title": "ThaoResearch 종료?",
-  "main.exit_confirm": "예약 작업과 텔레그램 알림이 중지됩니다. 계속하시겠습니까?"
+  "main.exit_confirm": "예약 작업과 텔레그램 알림이 중지됩니다. 계속하시겠습니까?",
+  "main.title": "ThaoResearch",
+  "main.tab_dashboard": "대시보드",
+  "main.tab_settings": "설정",
+  "main.tab_history": "기록",
+  "main.status_ready": "준비됨",
+  "main.lang": "언어",
+  "main.config": "설정 파일",
+  "main.saved_indicator": "저장됨",
+  "main.fetch_progress": "가져오는 중…",
+  "main.fetch_progress_auto": "자동으로 가져오는 중… (스케줄러)",
+  "main.fetch_done": "가져오기 완료",
+  "main.fetch_failed": "가져오기 실패: {err}",
+  "viewer.commodity_label": "품목:",
+  "viewer.status_label": "상태:",
+  "viewer.no_summary": "(이 기사의 요약이 없습니다. “브라우저에서 열기”로 원문을 보세요.)"
 }
