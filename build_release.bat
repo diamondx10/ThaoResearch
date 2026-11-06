@@ -191,6 +191,25 @@ REM Portable docs: how to choose a data folder, and what to do if it won't start
 copy /Y "packaging\README-PORTABLE.txt" "installer_staging\README.txt" >nul 2>nul
 copy /Y "packaging\datadir.txt.example" "installer_staging\datadir.txt.example" >nul 2>nul
 
+REM Pre-activated licence, so the portable sends alerts on first run instead
+REM of starting with Telegram and toast silently gated off. It goes in data\
+REM because that is where paths.DATA_DIR looks for it; the app rewrites the
+REM file itself if the user ever submits a different key.
+if not exist "packaging\license.dat" (
+    echo [ERROR] packaging\license.dat is missing - the portable would ship
+    echo         with Telegram and toast disabled. Generate one with:
+    echo             python license_generator.py YYYYMMDD
+    pause
+    exit /b 1
+)
+copy /Y "packaging\license.dat" "installer_staging\data\license.dat" >nul 2>nul
+if not exist "installer_staging\data\license.dat" (
+    echo [ERROR] Could not stage packaging\license.dat.
+    pause
+    exit /b 1
+)
+echo       licence staged: packaging\license.dat
+
 REM Create the zip from staging folder
 powershell -Command "Compress-Archive -Path 'installer_staging\*' -DestinationPath 'installer_output\ThaoResearch-1.0.0-portable.zip' -Force"
 

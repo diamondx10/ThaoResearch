@@ -4,6 +4,13 @@ ThaoResearch 1.0.0 - portable edition
 Unzip anywhere and run ThaoResearch.exe. Nothing is installed, nothing is
 written to the registry.
 
+The licence is already activated -- data\license.dat ships inside this zip
+and is valid until 2027-12-31, so Telegram alerts and Windows toasts work
+on the first run. You do not need to enter a key. (Without that file the
+app still runs and still crawls, but both alert channels stay switched
+off.) Keep data\license.dat with the rest of your data folder when you
+move or back it up.
+
 
 Where your data is kept
 -----------------------

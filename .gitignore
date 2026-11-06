@@ -34,6 +34,16 @@ build_temp/
 # scripts/embed_credentials.py every build carries the live bot token.
 installer_output/
 
+# The licence staged into the portable zip by build_release.bat. It is a
+# working key and this repository is public, so it is generated locally
+# rather than committed:
+#     python license_generator.py 20271231 > /tmp/token
+# then write packaging/license.dat as
+#     {"version": 2, "license_key": "<token>", "valid_to": "YYYY-MM-DD",
+#      "issued_at": "<iso8601>", "last_verified": "<iso8601>"}
+# The build fails with instructions if the file is absent.
+packaging/license.dat
+
 # IDE
 .vscode/
 .idea/
