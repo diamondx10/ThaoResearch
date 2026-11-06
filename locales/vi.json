@@ -162,5 +162,9 @@
   "main.fetch_failed": "Lấy tin thất bại: {err}",
   "viewer.commodity_label": "Hàng hóa:",
   "viewer.status_label": "Trạng thái:",
-  "viewer.no_summary": "(Bài này chưa có tóm tắt. Bấm “Mở trong trình duyệt” để đọc bài gốc.)"
+  "viewer.no_summary": "(Bài này chưa có tóm tắt. Bấm “Mở trong trình duyệt” để đọc bài gốc.)",
+  "main.status_running": "Đang chạy…",
+  "main.status_done": "Xong",
+  "main.status_error": "Lỗi",
+  "main.status_no_handler": "Không có trình xử lý"
 }

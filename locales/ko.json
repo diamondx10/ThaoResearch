@@ -162,5 +162,9 @@
   "main.fetch_failed": "가져오기 실패: {err}",
   "viewer.commodity_label": "품목:",
   "viewer.status_label": "상태:",
-  "viewer.no_summary": "(이 기사의 요약이 없습니다. “브라우저에서 열기”로 원문을 보세요.)"
+  "viewer.no_summary": "(이 기사의 요약이 없습니다. “브라우저에서 열기”로 원문을 보세요.)",
+  "main.status_running": "실행 중…",
+  "main.status_done": "완료",
+  "main.status_error": "오류",
+  "main.status_no_handler": "처리기 없음"
 }
