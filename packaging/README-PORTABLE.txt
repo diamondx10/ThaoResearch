@@ -1,8 +1,17 @@
 ThaoResearch 1.0.0 - portable edition
 =====================================
 
-Unzip anywhere and run ThaoResearch.exe. Nothing is installed, nothing is
-written to the registry.
+Unzip anywhere and run ThaoResearch.exe. Nothing is installed.
+
+One registry value is written, the first time a notification appears:
+
+    HKEY_CURRENT_USER\SOFTWARE\Classes\AppUserModelId\ThaoResearch.Watcher...
+
+That is the per-user app registration Windows requires before a
+notification may carry a "Read more" button and show "ThaoResearch" as the
+sender. It needs no admin rights, touches nothing outside your own user
+account, and can be deleted at any time with regedit -- you would just get
+a plain notification with no button.
 
 The licence is already activated -- data\license.dat ships inside this zip
 and is valid until 2027-12-31, so Telegram alerts and Windows toasts work
@@ -77,3 +86,12 @@ Alerts arrive in the configured channel. Each one is a short teaser with a
 "Read more" button that expands the full article inside Telegram (with
 Prev/Next paging for long pieces) and a "Read less" button to collapse it
 again. The article link is always in the message.
+
+
+Windows notifications
+---------------------
+
+Each alert also raises a Windows notification carrying a "Read more"
+button; pressing it opens that article in the app's reader window. The
+reader sizes itself to the article, so a short wire blurb gets a short
+window and a long piece gets a taller one with a scrollbar.
