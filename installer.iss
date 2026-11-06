@@ -37,11 +37,12 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 AppCopyright={#MyAppCopyright}
 
-; Default install dir = C:\Program Files\ThaoResearch
-; (User can change it in the wizard.)
-DefaultDirName={autopf}\{#MyAppName}
+; Default install dir = user-writable location (no admin required)
+; Use {localappdata} for per-user install that doesn't need admin rights.
+DefaultDirName={localappdata}\{#MyAppName}
 DefaultGroupName={#MyAppDisplayName}
 DisableProgramGroupPage=yes
+AllowNoIcons=yes
 
 ; Output
 OutputDir=installer_output
@@ -61,6 +62,7 @@ WizardStyle=modern
 WizardSizePercent=120
 WindowVisible=no
 
+; Admin required but user can choose install location
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 
@@ -90,17 +92,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 ; --- Bundled data + assets ---
-; These files MUST sit next to the EXE so the portable install works.
-Source: "config.yaml"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists('config.yaml')
-Source: "init_config.yaml"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists('init_config.yaml')
-Source: ".env"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists('.env')
+; These files live in data/ folder alongside history.db and prices.db
+; for full portability (one folder = everything).
+Source: "config.yaml"; DestDir: "{app}\data"; Flags: ignoreversion
+Source: "init_config.yaml"; DestDir: "{app}\data"; Flags: ignoreversion
 Source: "locales\*"; DestDir: "{app}\locales"; Flags: ignoreversion recursesubdirs
 Source: "assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs
-
-; NOTE: data\*.db and data\license.dat are NOT shipped by the installer —
-; they are created on first run. If you want a default data dir, uncomment
-; below. Leave commented for a clean first-run experience.
-; Source: "data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs; Check: DirExists('data')
 
 [Dirs]
 ; Create writable subdirs at install time. Data lives INSIDE the install
@@ -110,9 +107,9 @@ Name: "{app}\data"; Permissions: users-modify
 
 [Icons]
 ; Desktop shortcut (opt-in via the Tasks checkbox).
-Name: "{autodesktop}\{#MyAppDisplayName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{userdesktop}\{#MyAppDisplayName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 ; Start Menu shortcut (always installed).
-Name: "{group}\{#MyAppDisplayName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{userstartmenu}\{#MyAppDisplayName}"; Filename: "{app}\{#MyAppExeName}"
 
 [Run]
 ; Optional: launch the app after install (off by default — leave commented
@@ -130,6 +127,16 @@ Type: filesandordirs; Name: "{app}\data"
 // ============================================================================
 // Pascal Script helpers
 // ============================================================================
-// No custom pages needed: the user picks ONE install folder and data lives
-// inside it. Keep this section in case we add a custom page later, but it
-// has no logic for now.
+
+// Force extract to install folder (not Windows TEMP) for full portability
+// This creates a local temp dir inside {tmp} path to avoid "Error 5: Access is denied"
+procedure InitializeWizard();
+var
+  TempPath: String;
+begin
+  // Create a unique temp subfolder in the install location
+  TempPath := ExpandConstant('{src}\temp');
+  if DirExists(TempPath) then
+    DelTree(TempPath, True, True, True);
+  CreateDir(TempPath);
+end;

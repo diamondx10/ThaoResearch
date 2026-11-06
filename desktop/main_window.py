@@ -599,12 +599,12 @@ class MainWindow:
         try:
             if not hasattr(self, "_dashboard_panes"):
                 return
-            # ``panepos`` accepts either an integer index (pane number) or
-            # the literal pixel height of pane #0 (the log tail).
-            # We want the log pane to be ~120px tall.
-            current = self._dashboard_panes.paneposget(0)
-            if not current:
-                self._dashboard_panes.paneposset(0, 120)
+            # Set log pane to ~120px tall using paneconfigure minsize
+            # (paneposget/paneposset don't exist in standard Tkinter).
+            try:
+                self._dashboard_panes.paneconfigure(0, minsize=120)
+            except tk.TclError:
+                pass
         except tk.TclError:
             pass
 
@@ -929,10 +929,9 @@ class MainWindow:
             try:
                 # Lazy import to avoid a hard dep on main.load_config at
                 # import time — main.py itself imports from desktop.*.
-                from utils.paths import APP_ROOT
                 import yaml  # type: ignore
-                cfg_path = APP_ROOT / "config.yaml"
-                if cfg_path.exists():
+                cfg_path = self.config_path
+                if cfg_path and cfg_path.exists():
                     with open(cfg_path, "r", encoding="utf-8") as fh:
                         cfg = yaml.safe_load(fh) or {}
                     tz_name = ((cfg.get("general") or {}).get("timezone"))

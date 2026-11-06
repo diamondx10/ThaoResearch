@@ -4,7 +4,7 @@ general:
   max_articles_per_run: 50
   timezone: Asia/Ho_Chi_Minh
   language: en
-  force_send_duplicates: true
+  force_send_duplicates: false
   autosave_settings: true
 scheduler:
   mode: fixed

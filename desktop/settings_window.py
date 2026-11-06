@@ -23,6 +23,7 @@ from core.telegram_bot import TelegramNotifier, validate_chat_id, validate_token
 from desktop.window_icon import apply_app_icon
 from utils import autostart, i18n, license as license_mod
 from utils.i18n import t
+from utils.paths import APP_ROOT, DATA_DIR, CONFIG_FILE, INIT_CONFIG_FILE
 
 logger = logging.getLogger("thaoresearch.desktop.settings_window")
 
@@ -154,10 +155,9 @@ def _schedule_autosave(state, frame, config, config_path, on_save):
 
 def _resolve_init_config_path(config_path: Path) -> Path:
     """Return the path we autosave to. We co-locate with ``config.yaml``
-    so the two never drift apart, and we use a separate filename so a
-    failed autosave never clobbers the working config the user saved
-    manually. ``init_config.yaml`` is the canonical name; we fall back
-    to ``config.yaml`` if for some reason a sibling write is impossible.
+    in the data/ folder alongside history.db and prices.db.
+    ``init_config.yaml`` is the canonical name; we fall back to
+    ``config.yaml`` if for some reason a sibling write is impossible.
     """
     try:
         sibling = config_path.parent / "init_config.yaml"
@@ -309,7 +309,7 @@ def build_widget(
     # -------------------------------------------------------------- General tab
     # Pass ``on_save=None`` here — the actual autosave trace is wired
     # by build_widget after every tab is built (see comment block there).
-    _build_general_tab(notebook, config, state)
+    _build_general_tab(notebook, config, state, config_path)
 
     # -------------------------------------------------------------- Sources tab
     sources_tree = _build_sources_tab(notebook, config)
@@ -333,7 +333,7 @@ def build_widget(
     # They are secrets and intentionally NOT exposed in the Settings GUI.
 
     # ---------------------------------------------------------------- About tab
-    _build_about_tab(notebook, on_change_license)
+    _build_about_tab(notebook, config_path=config_path, on_change_license=on_change_license)
 
     # ------------------------------------------------------------------
     # Wire all autosave traces NOW (after every tab is built). The
@@ -705,7 +705,7 @@ def _show_license_info(parent):
     messagebox.showinfo(t("license.title", default="ThaoResearch - License"), text)
 
 
-def _build_general_tab(notebook, config, state, on_save=None):
+def _build_general_tab(notebook, config, state, config_path, on_save=None):
     tab = ttk.Frame(notebook, padding=12)
     notebook.add(tab, text=t("settings.tab_general"))
 
@@ -818,10 +818,11 @@ def _build_general_tab(notebook, config, state, on_save=None):
         row=7, column=0, columnspan=2, sticky="w", pady=4
     )
 
-    # ------------------------------------------------------------ License block
-    ttk.Separator(tab, orient="horizontal").grid(row=8, column=0, columnspan=2, sticky="we", pady=12)
+    # ------------------------------------------------------------ Config file info (shown in About tab instead)
+    # NOTE: config_path is displayed in the About tab for clarity.
+    ttk.Separator(tab, orient="horizontal").grid(row=12, column=0, columnspan=2, sticky="we", pady=12)
     ttk.Label(tab, text=t("settings.license_block_title"), font=("Segoe UI", 10, "bold")).grid(
-        row=9, column=0, columnspan=2, sticky="w", pady=(0, 4)
+        row=13, column=0, columnspan=2, sticky="w", pady=(0, 4)
     )
 
     # Status line — coloured. Lives on its own row so it can wrap if the
@@ -1343,7 +1344,7 @@ def _build_filters_tab(notebook, config):
     return high_text, black_text, delta_enabled_var, delta_var
 
 
-def _build_about_tab(notebook, on_change_license=None):
+def _build_about_tab(notebook, config_path=None, on_change_license=None):
     """Build the About tab.
 
     ``on_change_license`` is kept for backwards compatibility with the
@@ -1366,13 +1367,22 @@ def _build_about_tab(notebook, on_change_license=None):
     # just app metadata + quick links.
 
     ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=12)
+
+    # Config file info
+    ttk.Label(tab, text="Config files").pack(anchor="w")
+    info_frame = ttk.Frame(tab)
+    info_frame.pack(anchor="w", pady=(4, 0))
+    ttk.Label(info_frame, text=f"Config: {config_path or CONFIG_FILE}", foreground="#6B6B6B", font=("Segoe UI", 8)).pack(anchor="w")
+    ttk.Label(info_frame, text=f"Data folder: {INIT_CONFIG_FILE.parent}", foreground="#6B6B6B", font=("Segoe UI", 8)).pack(anchor="w")
+
+    ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=12)
     ttk.Label(tab, text="Quick links").pack(anchor="w")
     link_frame = ttk.Frame(tab)
     link_frame.pack(anchor="w", pady=4)
-    ttk.Button(link_frame, text="Open logs folder", command=lambda: _browse_path(Path("logs"))).pack(
+    ttk.Button(link_frame, text="Open logs folder", command=lambda: _browse_path(APP_ROOT / "logs")).pack(
         side="left", padx=(0, 8)
     )
-    ttk.Button(link_frame, text="Open data folder", command=lambda: _browse_path(Path("data"))).pack(
+    ttk.Button(link_frame, text="Open data folder", command=lambda: _browse_path(DATA_DIR)).pack(
         side="left"
     )
 

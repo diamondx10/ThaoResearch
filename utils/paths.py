@@ -25,7 +25,8 @@ import os
 import sys
 from pathlib import Path
 
-__all__ = ["APP_ROOT", "DATA_DIR", "ASSETS_DIR", "LOCALES_DIR", "ENV_FILE", "resolve_user_path"]
+__all__ = ["APP_ROOT", "DATA_DIR", "ASSETS_DIR", "LOCALES_DIR",
+           "CONFIG_FILE", "INIT_CONFIG_FILE", "resolve_user_path"]
 
 
 def _detect_app_root() -> Path:
@@ -88,16 +89,22 @@ ASSETS_DIR: Path = APP_ROOT / "assets"
 LOCALES_DIR: Path = APP_ROOT / "locales"
 """Translation .json files."""
 
-ENV_FILE: Path = APP_ROOT / ".env"
-"""Bot token + chat id (must live next to the EXE for portability)."""
+CONFIG_FILE: Path = DATA_DIR / "config.yaml"
+"""User configuration file - primary location (data folder)."""
+
+INIT_CONFIG_FILE: Path = DATA_DIR / "init_config.yaml"
+"""Autosaved configuration file - same location as config.yaml for portability."""
 
 
 def resolve_user_path(user_path: str | os.PathLike[str]) -> Path:
     """Resolve a user-supplied (or relative) path against the app root.
 
-    Mirrors the historical behavior in ``main.py._resolve_path``: tries the
-    working directory first (so ``--config foo.yaml`` still works in dev),
-    then the directory of the EXE, then PyInstaller's ``_MEIPASS``.
+    Search order:
+    - For frozen (portable) apps: EXE location FIRST, then CWD
+    - For dev runs: CWD first, then APP_ROOT
+
+    This ensures portable builds always find files next to the exe,
+    even when launched from a different working directory.
     """
     user_path = Path(user_path)
 
@@ -106,16 +113,28 @@ def resolve_user_path(user_path: str | os.PathLike[str]) -> Path:
         return user_path
 
     candidates: list[Path] = []
+
+    # For frozen apps: check EXE location FIRST (portable priority)
+    if getattr(sys, "frozen", False):
+        try:
+            exe_dir = Path(sys.executable).resolve().parent
+            candidates.append(exe_dir / user_path)
+        except Exception:
+            pass
+
+    # 2. CWD-relative (works in dev, fallback for portable)
     try:
         candidates.append(Path(os.getcwd()) / user_path)
     except Exception:
         pass
 
+    # 3. APP_ROOT (next to exe, or project root in dev)
     try:
         candidates.append(APP_ROOT / user_path)
     except Exception:
         pass
 
+    # 4. PyInstaller's _MEIPASS for bundled read-only assets
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         candidates.append(Path(meipass) / user_path)

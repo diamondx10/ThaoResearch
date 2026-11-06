@@ -23,6 +23,61 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "assets"
+CREDENTIALS = ROOT / "utils" / "credentials.py"
+EMBED_SCRIPT = ROOT / "scripts" / "embed_credentials.py"
+
+
+def _ensure_credentials() -> bool:
+    """Make sure ``utils/credentials.py`` holds real values before freezing.
+
+    Returns True when the exe can be built with credentials baked in.
+
+    The module is gitignored (it carries the live bot token), so a fresh
+    clone will not have it. We regenerate it from ``.env`` when possible and
+    return False when there is nothing to generate from, so the caller can
+    warn instead of shipping a silently mute build.
+    """
+    import re
+    import subprocess
+
+    # Match the assignment lines only. A substring search would always hit,
+    # because the generated module lists the placeholders in its own
+    # ``_PLACEHOLDERS`` set.
+    _ASSIGN = r'^{name}\s*=\s*"([^"]*)"'
+    _PLACEHOLDERS = {"", "YOUR_BOT_TOKEN_HERE", "YOUR_CHAT_ID_HERE"}
+
+    def _usable() -> bool:
+        if not CREDENTIALS.exists():
+            return False
+        try:
+            text = CREDENTIALS.read_text(encoding="utf-8")
+        except OSError:
+            return False
+        for name in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+            m = re.search(_ASSIGN.format(name=name), text, re.MULTILINE)
+            if m is None or m.group(1).strip() in _PLACEHOLDERS:
+                return False
+        return True
+
+    if _usable():
+        print("[OK] utils/credentials.py present - credentials will be embedded.")
+        return True
+
+    if not EMBED_SCRIPT.exists():
+        print(f"[WARN] {EMBED_SCRIPT.name} not found; cannot generate credentials.")
+        return False
+
+    if not (ROOT / ".env").exists():
+        print("[WARN] No .env found - copy .env.example to .env and fill it in,")
+        print("       then run: python scripts/embed_credentials.py")
+        return False
+
+    print("[..] Generating utils/credentials.py from .env ...")
+    result = subprocess.run([sys.executable, str(EMBED_SCRIPT)], cwd=str(ROOT))
+    if result.returncode != 0 or not _usable():
+        print("[WARN] Credential generation failed.")
+        return False
+    return True
 
 
 def _build_args(bypass_license: bool = False) -> list[str]:
@@ -33,25 +88,34 @@ def _build_args(bypass_license: bool = False) -> list[str]:
         automatically (utils/license.py reads this at module import time).
       - Pass ``--bypass-license`` to main.py so the CLI also skips checks.
     """
+    sep = ";" if sys.platform == "win32" else ":"
     args: list[str] = [
         "--noconfirm",
         "--onefile",
         "--windowed",
         "--name", "ThaoResearch",
         "--paths", str(ROOT),
-        "--add-data", f"{ROOT / 'locales'}{';' if sys.platform == 'win32' else ':'}locales",
-        "--add-data", f"{ROOT / 'config.yaml'}{';' if sys.platform == 'win32' else ':'}.",
+        "--add-data", f"{ROOT / 'locales'}{sep}locales",
+        # NOTE: config files (config.yaml, init_config.yaml) are NOT bundled.
+        # Portable builds need to create them at first run from defaults in
+        # main.py. Config files live next to the exe in the data/ folder.
     ]
 
-    # Bundle .env if present (Telegram credentials fallback in frozen builds).
-    env_file = ROOT / ".env"
-    if env_file.exists():
-        sep = ";" if sys.platform == "win32" else ":"
-        args += ["--add-data", f"{env_file}{sep}."]
+    # Credentials live in utils/credentials.py, generated from .env by
+    # scripts/embed_credentials.py and compiled into the exe so end users do
+    # not need their own .env. The module is gitignored, so a fresh clone has
+    # to generate it before building -- do that here rather than shipping an
+    # exe whose Telegram alerts silently never fire.
+    if not _ensure_credentials():
+        print("[WARN] Building WITHOUT embedded Telegram credentials.")
+        print("       The exe will look for a .env next to it at runtime.")
+    else:
+        # The import lives inside a function body in main.load_env(), so pin it
+        # explicitly instead of relying on PyInstaller's static analysis.
+        args += ["--hidden-import", "utils.credentials"]
 
     # Bundle assets folder (icons, etc.)
     if ASSETS.exists():
-        sep = ";" if sys.platform == "win32" else ":"
         args += ["--add-data", f"{ASSETS}{sep}assets"]
 
     # License scripts bundled for in-app license dialog

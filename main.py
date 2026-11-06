@@ -53,7 +53,7 @@ _job_state = {
     "last_finished_at": 0.0,
     "timeout_s": 120.0,  # worst-case crawl + filter pipeline
 }
-from utils.paths import APP_ROOT, DATA_DIR, ENV_FILE, resolve_user_path
+from utils.paths import APP_ROOT, DATA_DIR, resolve_user_path
 from utils.errors import (
     EmptyChatIdError,
     EmptyTokenError,
@@ -75,15 +75,113 @@ from utils.ui import (
 )
 
 VERSION = "1.0.0"
-DEFAULT_CONFIG = Path("config.yaml")
-# ``init_config.yaml`` is the autosave target — written every time the
-# user changes a setting in the GUI. On next launch we prefer it over
-# ``config.yaml`` so the user always gets the most recent state they
-# edited. ``config.yaml`` is treated as a fallback (and as the bootstrap
-# file the project ships with).
-DEFAULT_INIT_CONFIG = Path("init_config.yaml")
+# Config files now live in the data/ folder alongside history.db and prices.db
+# for full portability (one folder = everything)
+from utils.paths import APP_ROOT, DATA_DIR, CONFIG_FILE, INIT_CONFIG_FILE
+DEFAULT_CONFIG = CONFIG_FILE
+DEFAULT_INIT_CONFIG = INIT_CONFIG_FILE
+# Credentials: ``utils/credentials.py`` (generated, gitignored) is preferred so
+# release builds can bake the token into the .exe. ``.env`` is the dev fallback
+# and the single source of truth — regenerate the module with
+# ``python scripts/embed_credentials.py``.
 DEFAULT_ENV = Path(".env")
 DEFAULT_WELCOME = True  # print welcome help on first run
+
+# =============================================================================
+# Default config template (used when no config file exists)
+# =============================================================================
+DEFAULT_CONFIG_TEMPLATE = {
+    "general": {
+        "enable_desktop_toast": True,
+        "enable_telegram_alert": True,
+        "max_articles_per_run": 50,
+        "timezone": "Asia/Ho_Chi_Minh",
+        "language": "en",
+        "force_send_duplicates": False,
+        "autosave_settings": True,
+    },
+    "scheduler": {
+        "mode": "fixed",
+        "fixed_interval_minutes": 5,
+    },
+    "sources": [
+        {
+            "name": "Google News - Soybean Oil (all)",
+            "type": "rss",
+            "url": "https://news.google.com/rss/search?q=%22soybean+oil%22+OR+%22soyoil%22+OR+%22SBO%22&hl=en-US&gl=US&ceid=US:en",
+            "enabled": True,
+        },
+    ],
+    "commodities": [
+        {
+            "name": "Soybean Oil",
+            "keywords": ["soybean oil", "soyoil", "SBO", "biodiesel", "palm oil"],
+            "enabled": True,
+            "price_threshold": 50.0,
+        },
+    ],
+    "filters": {
+        "high_priority_keywords": ["halt", "surge", "crash", "sanctions", "embargo", "record"],
+        "blacklist_keywords": ["advertisement", "sponsored", "premium content", "signup"],
+        "enable_delta_alert": True,
+        "delta_threshold_pct": 5.0,
+    },
+}
+
+
+def _create_default_config(path: Path) -> None:
+    """Create a default config file if it doesn't exist."""
+    try:
+        import yaml
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(DEFAULT_CONFIG_TEMPLATE, f, allow_unicode=True, sort_keys=False)
+        print(f"[INFO] Created default config at: {path}")
+    except Exception as e:
+        print(f"[WARN] Could not create default config: {e}")
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge `override` into `base`, returning a new dict.
+
+    Values in `override` win. For dict values, we recurse so that adding
+    a new key to `override` doesn't wipe out other keys from `base`.
+    For list values, `override` completely replaces `base` (no element-
+    wise merge — too complex and rarely needed for this app).
+    """
+    out = dict(base)
+    for k, v in (override or {}).items():
+        if (
+            k in out
+            and isinstance(out[k], dict)
+            and isinstance(v, dict)
+        ):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _merge_with_defaults(config: dict) -> dict:
+    """Ensure all default keys exist in `config`.
+
+    Critical for portable builds: when a user copies a partial config
+    (or when the GUI autosave writes a stripped section), keys the
+    rest of the app expects (e.g. `sources`, `commodities`, `filters`)
+    may be missing. Without this merge, the GUI crashes when it tries
+    to iterate `config["sources"]`, and the scheduler silently runs
+    with zero sources.
+
+    Existing user values always win; defaults only fill in missing
+    keys. Lists are replaced wholesale (not merged element-wise) so
+    the user's source list is preserved exactly.
+    """
+    try:
+        merged = _deep_merge(DEFAULT_CONFIG_TEMPLATE, config or {})
+        return merged
+    except Exception as e:
+        logger_.warning(f"merge_with_defaults failed: {e}") if False else None
+        return config or {}
 
 
 # =============================================================================
@@ -163,15 +261,56 @@ def load_config(path: Path) -> dict:
     return data
 
 
-def load_env(path: Path) -> dict:
-    """Load .env file. Returns dict of variables. Does not raise."""
-    if not path.exists():
+def load_env(path: Path | None = None) -> dict:
+    """Load Telegram credentials. Returns {} when none are available.
+
+    Resolution order:
+
+    1. ``utils/credentials.py`` — generated by ``scripts/embed_credentials.py``
+       and baked into the .exe by PyInstaller, so an end user does not need
+       their own ``.env``. The module is gitignored; only a ``.example``
+       template with placeholders is committed. When the module is absent or
+       still holds placeholders, we fall through.
+    2. ``.env`` next to the app (or CWD in dev) — the source of truth that the
+       generator reads from.
+    3. Process environment — lets CI or a launcher inject the values without
+       any file on disk.
+
+    Never raises: a missing or unreadable source just means "no credentials",
+    and ``build_telegram_notifier`` degrades to desktop-toast-only mode.
+    """
+    # 1. Embedded module (release builds)
+    try:
+        from utils.credentials import (
+            TELEGRAM_BOT_TOKEN,
+            TELEGRAM_CHAT_ID,
+            has_embedded_credentials,
+        )
+
+        if has_embedded_credentials():
+            return {
+                "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
+                "TELEGRAM_CHAT_ID": TELEGRAM_CHAT_ID,
+            }
+    except Exception:
+        # ImportError (file not generated yet) or AttributeError (stale file
+        # from an older layout). Either way: fall through to .env.
+        pass
+
+    # 2. .env file — resolved next to the EXE first for portable builds.
+    env_path = resolve_user_path(path or DEFAULT_ENV)
+    try:
+        if env_path.exists():
+            load_dotenv(env_path, override=False)
+    except Exception as e:
+        logging.getLogger("thaoresearch").warning("Could not read %s: %s", env_path, e)
+
+    # 3. Process environment (populated by step 2, or set externally).
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat_id:
         return {}
-    load_dotenv(path, override=False)
-    return {
-        "TELEGRAM_BOT_TOKEN": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
-        "TELEGRAM_CHAT_ID": os.environ.get("TELEGRAM_CHAT_ID", ""),
-    }
+    return {"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": chat_id}
 
 
 def build_telegram_notifier(env: dict, config: dict) -> Optional[TelegramNotifier]:
@@ -513,10 +652,10 @@ def run_daemon(args, config: dict, env: dict, notifier: Notifier):
     def exit_app():
         """Hard-stop every background subsystem. Called from the tray's
         Exit menu and (in the GUI case) the MainWindow's X / Close
-        button via the ``on_exit`` callback. The dispatcher in
-        ``_dispatch`` reacts to the ``shutdown`` event by destroying the
-        Tk window; the ``finally`` block at the bottom of ``run_daemon``
-        runs the rest of the cleanup (scheduler / telegram / tray).
+        button via the ``on_exit`` callback.
+
+        This directly shuts down all components (scheduler, telegram, tray)
+        and sends a shutdown event to the GUI queue to close the window.
         """
         try:
             scheduler.shutdown(wait=False)
@@ -528,6 +667,20 @@ def run_daemon(args, config: dict, env: dict, notifier: Notifier):
         except Exception:
             pass
         try:
+            # Stop the tray icon directly - this will unblock pystray's event loop
+            tray.stop()
+        except Exception:
+            pass
+        try:
+            # Close all database connections properly
+            from utils.database import close_all_connections
+            from utils.price_tracker import close_all_connections as close_price_connections
+            close_all_connections()
+            close_price_connections()
+        except Exception:
+            pass
+        try:
+            # Send shutdown to GUI queue to close the Tk window
             gui_queue.put(("shutdown", None))
         except Exception:
             pass
@@ -763,10 +916,10 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
     def exit_app():
         """Hard-stop every background subsystem. Called from the tray's
         Exit menu and (in the GUI case) the MainWindow's X / Close
-        button via the ``on_exit`` callback. The dispatcher in
-        ``_dispatch`` reacts to the ``shutdown`` event by destroying the
-        Tk window; the ``finally`` block at the bottom of ``run_daemon``
-        runs the rest of the cleanup (scheduler / telegram / tray).
+        button via the ``on_exit`` callback.
+
+        This directly shuts down all components (scheduler, telegram, tray)
+        and sends a shutdown event to the GUI queue to close the window.
         """
         try:
             scheduler.shutdown(wait=False)
@@ -778,6 +931,20 @@ def run_gui(args, config: dict, env: dict, notifier: Notifier) -> int:
         except Exception:
             pass
         try:
+            # Stop the tray icon directly - this will unblock pystray's event loop
+            tray.stop()
+        except Exception:
+            pass
+        try:
+            # Close all database connections properly
+            from utils.database import close_all_connections
+            from utils.price_tracker import close_all_connections as close_price_connections
+            close_all_connections()
+            close_price_connections()
+        except Exception:
+            pass
+        try:
+            # Send shutdown to GUI queue to close the Tk window
             gui_queue.put(("shutdown", None))
         except Exception:
             pass
@@ -1137,43 +1304,53 @@ def cmd_test_telegram(args, env: dict):
 def _resolve_path(user_path: Path) -> Path:
     """Find an existing file given a user path (relative or absolute).
 
-    Search order:
-      1. The user-supplied path (if absolute and exists, use it).
-      2. CWD-relative (the default behavior).
-      3. Next to sys.executable (the exe location) — common for frozen apps.
-      4. Inside PyInstaller's _MEIPASS (the bundle temp dir).
-      5. The user's home folder (ThaoResearch/<name>) for portability.
+    Search order for FROZEN apps (portable builds):
+      1. Next to sys.executable (the portable install folder) — HIGHEST PRIORITY
+      2. PyInstaller's _MEIPASS (the bundle temp dir)
+
+    Search order for dev runs:
+      1. CWD-relative (the default behavior).
+      2. The project root.
+
+    For explicit absolute paths: return as-is if exists.
     """
+    # Explicit absolute paths are returned as-is
     if user_path.is_absolute() and user_path.exists():
         return user_path
 
     candidates = []
 
+    # For frozen (portable) builds: check EXE location FIRST
+    if getattr(sys, "frozen", False):
+        try:
+            exe_dir = Path(sys.executable).resolve().parent
+            candidates.append(exe_dir / user_path)
+        except Exception:
+            pass
+
+    # CWD-relative (works in dev)
     try:
         candidates.append(Path.cwd() / user_path)
     except Exception:
         pass
 
-    try:
-        exe_dir = Path(sys.executable).resolve().parent
-        # Direct neighbour of the exe.
-        candidates.append(exe_dir / user_path)
-        # When running as a frozen PyInstaller build, the user's `.env`
-        # and `config.yaml` typically live in the project root, which is
-        # the parent of the `dist/` folder that contains the exe. Walk up
-        # a few levels so we can find them without manual copying.
-        if getattr(sys, "frozen", False):
+    # For frozen builds: also check project root (parent of dist/)
+    if getattr(sys, "frozen", False):
+        try:
+            exe_dir = Path(sys.executable).resolve().parent
             cur = exe_dir
             for _ in range(3):
                 cur = cur.parent
                 candidates.append(cur / user_path)
-    except Exception:
-        pass
+        except Exception:
+            pass
 
+    # _MEIPASS for bundled read-only assets
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         candidates.append(Path(meipass) / user_path)
 
+    # Home folder fallback
     home = Path(os.path.expanduser("~"))
     candidates.append(home / "ThaoResearch" / user_path)
 
@@ -1303,6 +1480,20 @@ def main(argv=None) -> int:
         if init_path.exists():
             print(f"[INFO] Loading autosaved config from: {init_path}")
             args.config = init_path
+        else:
+            # Create default config if neither init_config.yaml nor config.yaml exists
+            # This is the first-run experience for portable builds
+            config_path_to_create = init_path
+            try:
+                _create_default_config(config_path_to_create)
+                args.config = config_path_to_create
+            except Exception as e:
+                print(f"[WARN] Could not create default config: {e}")
+                # Try config.yaml as fallback
+                fallback_path = _resolve_path(CONFIG_FILE)
+                if fallback_path.exists():
+                    args.config = fallback_path
+
     resolved_config = _resolve_config_path(args.config)
     if str(resolved_config) != str(args.config):
         print(f"[INFO] Config found at: {resolved_config}")
@@ -1310,21 +1501,29 @@ def main(argv=None) -> int:
     try:
         config = load_config(args.config)
     except FileNotFoundError:
-        print(f"[E0100] Config file not found: {args.config}")
-        print("        Copy config.yaml.example to config.yaml first.")
-        return 1
+        # Last resort: create default config
+        print(f"[INFO] Config not found, creating default: {args.config}")
+        try:
+            _create_default_config(args.config)
+            config = load_config(args.config)
+        except Exception as e2:
+            print(f"[E0100] Config file not found and could not create default: {e2}")
+            return 1
     except ValueError as e:
         print(f"[E0101] {e}")
         return 1
+
+    # CRITICAL: merge defaults into user config so missing keys still work.
+    # Portable users sometimes have partial configs (only timezone, etc.)
+    # and the GUI will crash if `sources`/`commodities`/`filters` is missing.
+    config = _merge_with_defaults(config)
 
     # Language: --lang > config > env > default
     lang = args.lang or config.get("general", {}).get("language")
     i18n.init_language(lang)
 
-    env_path = _resolve_path(DEFAULT_ENV)
-    if str(env_path) != str(DEFAULT_ENV):
-        print(f"[INFO] .env found at: {env_path}")
-    env = load_env(env_path)
+    # Credentials are embedded in utils/credentials.py, no external file needed
+    env = load_env(None)
 
     # Print banner + config (only for CLI modes — GUI mode shows everything in
     # the MainWindow status bar to avoid stdout encoding issues on Windows).
@@ -1439,7 +1638,7 @@ def main(argv=None) -> int:
         except Exception as e:
             logger_.exception("GUI crashed: %s", e)
             try:
-                crash_log = Path("logs") / "crash.log"
+                crash_log = APP_ROOT / "logs" / "crash.log"
                 crash_log.parent.mkdir(parents=True, exist_ok=True)
                 with open(crash_log, "a", encoding="utf-8") as f:
                     f.write(
@@ -1460,7 +1659,7 @@ def main(argv=None) -> int:
         except Exception as e:
             logger_.exception("Daemon crashed: %s", e)
             try:
-                crash_log = Path("logs") / "crash.log"
+                crash_log = APP_ROOT / "logs" / "crash.log"
                 crash_log.parent.mkdir(parents=True, exist_ok=True)
                 with open(crash_log, "a", encoding="utf-8") as f:
                     f.write(

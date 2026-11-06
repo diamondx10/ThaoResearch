@@ -13,6 +13,10 @@ __pycache__/
 .env.*.local
 *.pem
 secrets.yaml
+# Generated credentials module (contains the real Telegram bot token).
+# Source of truth is .env; regenerate with: python scripts/embed_credentials.py
+utils/credentials.py
+
 
 # Runtime data
 data/
@@ -24,7 +28,11 @@ logs/
 # Build artifacts
 dist/
 build/
+build_temp/
 *.spec
+# Release binaries: large, and once credentials are embedded by
+# scripts/embed_credentials.py every build carries the live bot token.
+installer_output/
 
 # IDE
 .vscode/

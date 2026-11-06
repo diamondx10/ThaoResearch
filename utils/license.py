@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple
@@ -37,6 +38,18 @@ STATUS_NOT_ACTIVATED = "not_activated"
 STATUS_INVALID = "invalid"
 STATUS_EXPIRED = "expired"
 STATUS_ACTIVATED = "activated"
+
+
+class LicenseError(Exception):
+    """Base exception for all license-related errors."""
+
+
+class LicenseInvalidError(LicenseError):
+    """Raised when the license key is invalid or missing."""
+
+
+class LicenseExpiredError(LicenseError):
+    """Raised when the license has expired."""
 
 # Keys we always write to the on-disk JSON. ``license_key`` stores the
 # raw 16-char string the user entered (the spec says it's fine to

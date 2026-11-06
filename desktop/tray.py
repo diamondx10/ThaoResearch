@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw
 
 from desktop.gui_queue import gui_queue
 from utils.i18n import t
+from utils.paths import APP_ROOT, DATA_DIR, CONFIG_FILE, INIT_CONFIG_FILE
 
 logger = logging.getLogger("thaoresearch.desktop.tray")
 
@@ -123,11 +124,11 @@ class TrayApp:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 t("tray.open_logs"),
-                lambda _i, _it: _open_folder(Path("logs")),
+                lambda _i, _it: _open_folder(APP_ROOT / "logs"),
             ),
             pystray.MenuItem(
                 t("tray.open_data"),
-                lambda _i, _it: _open_folder(Path("data")),
+                lambda _i, _it: _open_folder(DATA_DIR),
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("tray.exit"), lambda _i, _it: self._request_exit()),
@@ -221,7 +222,7 @@ class TrayApp:
                     cfg, cfg_path = payload
                     save_cb = None
                 else:
-                    cfg, cfg_path = (payload if payload else ({}, Path("config.yaml")))
+                    cfg, cfg_path = (payload if payload else ({}, CONFIG_FILE))
                     save_cb = None
                 SettingsWindow(cfg, cfg_path, on_save=save_cb).show()
             elif etype == "show_main_window":
@@ -232,7 +233,7 @@ class TrayApp:
                 else:
                     cfg, cfg_path, run_cb, open_cb, save_cb = (
                         {},
-                        Path("config.yaml"),
+                        CONFIG_FILE,
                         None,
                         self.on_open_article,
                         None,
