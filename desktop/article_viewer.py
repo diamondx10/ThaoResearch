@@ -69,8 +69,9 @@ class ArticleViewer:
                     "remains visible"
                 )
         self.window.title("Article - ThaoResearch")
-        self.window.geometry("700x800")
-        self.window.minsize(500, 600)
+        # No geometry here any more: _fit_to_content() sets it once the
+        # widgets exist and their real size is known.
+        self.window.minsize(460, 320)
         self.window.configure(bg=theme.COLORS["surface"])
         apply_app_icon(self.window)
         # Force the window to be mapped on screen immediately. Without this,
@@ -226,6 +227,121 @@ class ArticleViewer:
             command=self._close,
             width=10,
         ).pack(side="right", padx=4)
+
+        # Everything exists now, so the window can be sized to it.
+        self._wrap_targets = (title_label, link_label)
+        self._body_scroll = body_scroll
+        self._text_frame = text_frame
+        self._fit_to_content()
+        self.window.bind("<Configure>", self._on_resize)
+
+    # -------------------------------------------------------- adaptive layout
+    #: Comfortable reading column. Long titles do not widen the window --
+    #: they wrap -- so this stays fixed and only the height responds.
+    _WIDTH = 740
+    _MIN_H = 320
+    _MAX_H = 980
+    #: Body lines below/above which the Text stops shrinking or growing.
+    _MIN_BODY_LINES = 3
+    _MAX_BODY_LINES = 26
+
+    def _wrapped_line_count(self, text: str, pixel_width: int) -> int:
+        """How many display lines ``text`` needs at ``pixel_width``.
+
+        Measured with the body font rather than guessed from a character
+        count, so it holds for Vietnamese and Korean too.
+        """
+        import tkinter.font as tkfont
+
+        try:
+            font = tkfont.Font(font=self._body_text.cget("font"))
+            sample = "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            avg_char = max(1.0, font.measure(sample) / len(sample))
+        except Exception:
+            avg_char = 7.0
+        per_line = max(20, int(pixel_width / avg_char))
+        lines = 0
+        for paragraph in (text or "").split("\n"):
+            length = len(paragraph.strip())
+            lines += 1 if length == 0 else -(-length // per_line)  # ceil
+        return max(1, lines)
+
+    def _fit_to_content(self) -> None:
+        """Size the window to the article instead of a fixed 700x800.
+
+        A two-line RSS blurb used to open the same 800px-tall window as a
+        long story, leaving most of it empty, while a long piece got that
+        same window and simply scrolled. Now the body Text is given a line
+        count measured from the real text, the window asks Tk how tall that
+        makes it, and the result is clamped so it is never cramped, never
+        taller than the screen, and never taller than it needs to be.
+
+        The scrollbar is packed only when the body actually overflows, so a
+        short article shows no dead scrollbar track.
+        """
+        try:
+            body = self._body_text.get("1.0", "end-1c")
+        except Exception:
+            body = ""
+
+        usable = self._WIDTH - 72  # window padding + scrollbar gutter
+        needed = self._wrapped_line_count(body, usable)
+        shown = max(self._MIN_BODY_LINES, min(needed, self._MAX_BODY_LINES))
+
+        try:
+            self._body_text.configure(height=shown)
+        except Exception:
+            pass
+
+        # Only show the scrollbar when there is something to scroll to.
+        # Unpack first and re-pack if needed rather than testing
+        # winfo_ismapped(): before the window is mapped that reports False
+        # even for an already-packed widget, so the dead scrollbar survived.
+        try:
+            self._body_scroll.pack_forget()
+            if needed > shown:
+                self._body_scroll.pack(side="right", fill="y")
+        except Exception:
+            pass
+
+        self._apply_wraplength(self._WIDTH)
+
+        try:
+            self.window.update_idletasks()
+            req_h = self.window.winfo_reqheight()
+            screen_h = self.window.winfo_screenheight()
+            height = max(self._MIN_H, min(req_h, self._MAX_H, screen_h - 120))
+
+            # Centre on screen; a viewer opened from a toast should land
+            # where the eye already is, not in the top-left corner.
+            screen_w = self.window.winfo_screenwidth()
+            x = max(0, (screen_w - self._WIDTH) // 2)
+            y = max(0, (screen_h - height) // 3)
+            self.window.geometry(f"{self._WIDTH}x{height}+{x}+{y}")
+        except Exception:
+            self.window.geometry(f"{self._WIDTH}x700")
+
+    def _apply_wraplength(self, window_width: int) -> None:
+        """Keep the title and link wrapping to the window, not to 640px.
+
+        Both labels used a hardcoded wraplength, so widening the window
+        left a ragged 640px-wide column of text with empty space beside it.
+        """
+        wrap = max(260, window_width - 80)
+        for label in getattr(self, "_wrap_targets", ()):  # title, link
+            try:
+                label.configure(wraplength=wrap)
+            except Exception:
+                pass
+
+    def _on_resize(self, event) -> None:
+        """Reflow on user resize. Only reacts to the window's own events."""
+        if event.widget is not self.window:
+            return
+        if getattr(self, "_last_width", None) == event.width:
+            return
+        self._last_width = event.width
+        self._apply_wraplength(event.width)
 
     # ---------------------------------------------------------------- helpers
     def _set_body_text(self, body: str) -> None:
