@@ -207,5 +207,16 @@
   "storage.reset_removed": "Đã xoá: {paths}",
   "storage.reset_none": "Chưa có lựa chọn nào được lưu.",
   "storage.fallback_warning": "Thư mục bạn chọn không ghi được nên đang dùng thư mục dự phòng. Hãy chọn thư mục khác.",
-  "toast.btn_read_more": "Đọc tiếp"
+  "toast.btn_read_more": "Đọc tiếp",
+  "fetchwin.block_title": "Thời gian lấy tin",
+  "fetchwin.label_mode": "Khoảng thời gian:",
+  "fetchwin.mode_since": "Từ một ngày đến hiện tại",
+  "fetchwin.mode_range": "Từ ngày đến ngày",
+  "fetchwin.mode_all": "Không giới hạn",
+  "fetchwin.label_from": "Từ ngày:",
+  "fetchwin.label_to": "Đến ngày:",
+  "fetchwin.hint": "Định dạng YYYY-MM-DD. Tính cả hai ngày đầu và cuối.",
+  "fetchwin.err_from": "“Từ ngày” không phải là ngày hợp lệ.",
+  "fetchwin.err_to": "“Đến ngày” không phải là ngày hợp lệ.",
+  "fetchwin.err_order": "“Đến ngày” sớm hơn “Từ ngày” — hai mốc sẽ được đảo lại."
 }

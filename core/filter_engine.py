@@ -1,14 +1,147 @@
-"""Filter engine — blacklist, commodity tagging, price threshold, urgency."""
+"""Filter engine — date window, blacklist, commodity tagging, price, urgency."""
 from __future__ import annotations
 
 import logging
 import re
-from typing import List, Optional
+from datetime import date, datetime, time as dtime
+from typing import List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from models.article import Article
 from utils import price_tracker
 
 logger = logging.getLogger("thaoresearch.core.filter_engine")
+
+# ---------------------------------------------------------------- date window
+
+#: Where the fetch window lives in config.yaml, and what it means:
+#:
+#:   fetch_window:
+#:     mode: since | range | all
+#:     from: '2026-10-26'      # inclusive, local midnight
+#:     to:   '2026-11-30'      # inclusive, local end-of-day ("range" only)
+#:
+#: "since" runs from ``from`` up to now, "range" is bounded at both ends,
+#: "all" disables the window. Missing config behaves as DEFAULT_MODE/FROM.
+DEFAULT_WINDOW_MODE = "since"
+DEFAULT_WINDOW_FROM = "2026-10-26"
+WINDOW_MODES = ("since", "range", "all")
+
+
+def parse_window_date(value) -> Optional[date]:
+    """Parse a config date. Accepts ``date``/``datetime``, 'YYYY-MM-DD',
+    and the 'DD/MM/YYYY' people type by hand. Returns None if unusable.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    logger.warning("Unrecognised fetch_window date %r — ignoring that bound.", value)
+    return None
+
+
+def resolve_window(config: dict, tz_name: str = "Asia/Ho_Chi_Minh") -> Tuple[Optional[datetime], Optional[datetime]]:
+    """Turn the config block into inclusive (start, end) datetimes.
+
+    Either bound may be None, meaning "unbounded in that direction".
+    Dates are interpreted in the user's own timezone: ``from`` at 00:00:00
+    and ``to`` at 23:59:59.999999, so a single-day range covers that day.
+    """
+    block = (config or {}).get("fetch_window") or {}
+    mode = str(block.get("mode") or DEFAULT_WINDOW_MODE).strip().lower()
+    if mode not in WINDOW_MODES:
+        logger.warning("Unknown fetch_window mode %r — using %r.", mode, DEFAULT_WINDOW_MODE)
+        mode = DEFAULT_WINDOW_MODE
+    if mode == "all":
+        return (None, None)
+
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = None
+
+    start_date = parse_window_date(block.get("from"))
+    if start_date is None:
+        start_date = parse_window_date(DEFAULT_WINDOW_FROM)
+    start = datetime.combine(start_date, dtime.min).replace(tzinfo=tz) if start_date else None
+
+    end = None
+    if mode == "range":
+        end_date = parse_window_date(block.get("to"))
+        if end_date is not None:
+            end = datetime.combine(end_date, dtime.max).replace(tzinfo=tz)
+
+    # A reversed range is a typo, not an instruction to match nothing.
+    if start and end and end < start:
+        logger.warning("fetch_window 'to' is before 'from' — swapping them.")
+        start, end = (
+            datetime.combine(end.date(), dtime.min).replace(tzinfo=tz),
+            datetime.combine(start.date(), dtime.max).replace(tzinfo=tz),
+        )
+    return (start, end)
+
+
+def apply_date_window(
+    articles: List[Article],
+    config: dict,
+    tz_name: str = "Asia/Ho_Chi_Minh",
+) -> List[Article]:
+    """Drop articles published outside the configured fetch window.
+
+    Runs before the keyword filters so the dashboard's "filtered" count
+    reflects what the user actually asked to see. An article whose
+    pub_date cannot be compared is kept: silently dropping news because a
+    feed gave a odd date would be worse than letting one extra through.
+    """
+    start, end = resolve_window(config, tz_name)
+    if start is None and end is None:
+        return list(articles)
+
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = None
+
+    kept: List[Article] = []
+    for article in articles:
+        pub = getattr(article, "pub_date", None)
+        if not isinstance(pub, datetime):
+            kept.append(article)
+            continue
+        # normalize_pub_dates() makes these aware, but a naive one would
+        # raise on comparison, so pin it to the user's timezone first.
+        if pub.tzinfo is None and tz is not None:
+            pub = pub.replace(tzinfo=tz)
+        try:
+            if start is not None and pub < start:
+                continue
+            if end is not None and pub > end:
+                continue
+        except TypeError:
+            kept.append(article)
+            continue
+        kept.append(article)
+
+    dropped = len(articles) - len(kept)
+    if dropped:
+        logger.info(
+            "Date window %s..%s dropped %d of %d articles.",
+            start.date() if start else "-",
+            end.date() if end else "now",
+            dropped,
+            len(articles),
+        )
+    return kept
 
 # Matches: 90, 90.5, 1,234, 1,234.56, optionally followed by USD/$
 _PRICE_RE = re.compile(

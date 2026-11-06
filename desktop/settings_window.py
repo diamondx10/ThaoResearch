@@ -488,6 +488,12 @@ def build_widget(
         return ok
 
     frame.save_and_close = save_and_close  # type: ignore[attr-defined]
+    # Exposed so the form can be inspected and its YAML collected without
+    # driving the Save button (used by the tests).
+    frame.state = state  # type: ignore[attr-defined]
+    frame.gather_config = lambda: _gather_config(  # type: ignore[attr-defined]
+        config, state, sources_tree, high_text, black_text, delta_enabled_var, delta_var
+    )
     frame.reload = lambda: build_widget(parent, config, config_path, on_save=on_save, on_change_license=on_change_license, show_outer_buttons=show_outer_buttons)  # noqa: E501
     return frame
 
@@ -1147,7 +1153,150 @@ def _build_general_tab(notebook, config, state, config_path, on_save=None):
     # Apply initial state
     _apply_scheduler_mode()
 
-    _build_storage_block(tab, start_row=25)
+    # The fetch-window block occupies start_row .. start_row+6 inclusive,
+    # so storage must begin at 32, not 31, or its separator lands on top
+    # of the window block's validation label.
+    _build_fetch_window_block(tab, config, state, start_row=25)
+    _build_storage_block(tab, start_row=32)
+
+
+# =============================================================================
+# Fetch window — which publication dates a run is allowed to pick up
+# =============================================================================
+#: UI value -> config value. The combobox shows a sentence; the YAML keeps
+#: a short token so a hand-edited file stays readable.
+_WINDOW_MODE_KEYS = ("since", "range", "all")
+
+
+def _window_mode_labels() -> dict:
+    return {
+        "since": t("fetchwin.mode_since", default="From a date until now"),
+        "range": t("fetchwin.mode_range", default="Between two dates"),
+        "all": t("fetchwin.mode_all", default="No limit"),
+    }
+
+
+def _build_fetch_window_block(tab, config: dict, state, start_row: int) -> None:
+    """Date range the crawler is allowed to return articles from.
+
+    This is a real filter, not a display preference: articles published
+    outside the window are dropped before the keyword filters run, so they
+    are never sent to Telegram and never raise a notification.
+    """
+    from core import filter_engine as fe
+
+    block = (config.get("fetch_window") or {})
+    mode = str(block.get("mode") or fe.DEFAULT_WINDOW_MODE).strip().lower()
+    if mode not in _WINDOW_MODE_KEYS:
+        mode = fe.DEFAULT_WINDOW_MODE
+
+    from_date = fe.parse_window_date(block.get("from")) or fe.parse_window_date(
+        fe.DEFAULT_WINDOW_FROM
+    )
+    to_date = fe.parse_window_date(block.get("to"))
+
+    ttk.Separator(tab, orient="horizontal").grid(
+        row=start_row, column=0, columnspan=3, sticky="ew", pady=(16, 8)
+    )
+    ttk.Label(
+        tab,
+        text=t("fetchwin.block_title", default="Fetch period"),
+        font=theme.font("subheading"),
+    ).grid(row=start_row + 1, column=0, sticky="w", pady=(0, 6))
+
+    labels = _window_mode_labels()
+    state.window_mode_key = mode
+    state.window_mode_var = tk.StringVar(value=labels[mode])
+
+    ttk.Label(tab, text=t("fetchwin.label_mode", default="Period:")).grid(
+        row=start_row + 2, column=0, sticky="w", pady=4
+    )
+    mode_combo = ttk.Combobox(
+        tab,
+        textvariable=state.window_mode_var,
+        values=[labels[k] for k in _WINDOW_MODE_KEYS],
+        state="readonly",
+        width=28,
+    )
+    mode_combo.grid(row=start_row + 2, column=1, sticky="w", pady=4)
+
+    state.window_from_var = tk.StringVar(
+        value=from_date.isoformat() if from_date else fe.DEFAULT_WINDOW_FROM
+    )
+    state.window_to_var = tk.StringVar(value=to_date.isoformat() if to_date else "")
+
+    from_label = ttk.Label(tab, text=t("fetchwin.label_from", default="From date:"))
+    from_label.grid(row=start_row + 3, column=0, sticky="w", pady=4)
+    from_entry = ttk.Entry(tab, textvariable=state.window_from_var, width=16)
+    from_entry.grid(row=start_row + 3, column=1, sticky="w", pady=4)
+
+    to_label = ttk.Label(tab, text=t("fetchwin.label_to", default="To date:"))
+    to_label.grid(row=start_row + 4, column=0, sticky="w", pady=4)
+    to_entry = ttk.Entry(tab, textvariable=state.window_to_var, width=16)
+    to_entry.grid(row=start_row + 4, column=1, sticky="w", pady=4)
+
+    hint = ttk.Label(
+        tab,
+        text=t("fetchwin.hint", default="Format YYYY-MM-DD. Both dates are included."),
+        foreground=theme.COLORS["fg_muted"],
+    )
+    hint.grid(row=start_row + 5, column=1, sticky="w")
+
+    state.window_warn_var = tk.StringVar(value="")
+    warn = ttk.Label(
+        tab,
+        textvariable=state.window_warn_var,
+        foreground=theme.COLORS["danger"],
+        wraplength=430,
+    )
+    warn.grid(row=start_row + 6, column=1, sticky="w", pady=(2, 0))
+
+    def _selected_key() -> str:
+        chosen = state.window_mode_var.get()
+        for key, label in labels.items():
+            if label == chosen:
+                return key
+        return fe.DEFAULT_WINDOW_MODE
+
+    def _refresh(*_args):
+        """Grey out what the chosen mode does not use, and flag bad dates."""
+        key = _selected_key()
+        state.window_mode_key = key
+        uses_from = key in ("since", "range")
+        uses_to = key == "range"
+        for widget, enabled in (
+            (from_label, uses_from), (from_entry, uses_from),
+            (to_label, uses_to), (to_entry, uses_to),
+        ):
+            try:
+                widget.configure(state="normal" if enabled else "disabled")
+            except tk.TclError:
+                pass
+
+        problems = []
+        parsed_from = fe.parse_window_date(state.window_from_var.get())
+        if uses_from and parsed_from is None:
+            problems.append(
+                t("fetchwin.err_from", default="\"From date\" is not a valid date.")
+            )
+        parsed_to = fe.parse_window_date(state.window_to_var.get())
+        if uses_to and parsed_to is None and state.window_to_var.get().strip():
+            problems.append(
+                t("fetchwin.err_to", default="\"To date\" is not a valid date.")
+            )
+        if parsed_from and parsed_to and parsed_to < parsed_from and uses_to:
+            problems.append(
+                t(
+                    "fetchwin.err_order",
+                    default="\"To date\" is before \"From date\" — they will be swapped.",
+                )
+            )
+        state.window_warn_var.set("  ".join(problems))
+
+    state.window_mode_var.trace_add("write", _refresh)
+    state.window_from_var.trace_add("write", _refresh)
+    state.window_to_var.trace_add("write", _refresh)
+    _refresh()
 
 
 # =============================================================================
@@ -1818,6 +1967,28 @@ def _gather_config(
             "timezone": new_config["general"].get("timezone", "Asia/Ho_Chi_Minh"),
         }
     new_config["scheduler"] = scheduler_block
+
+    # Fetch window. Persist the short token, not the translated sentence
+    # shown in the combobox, so the YAML reads the same in every language.
+    try:
+        from core import filter_engine as _fe
+
+        win_mode = getattr(state, "window_mode_key", _fe.DEFAULT_WINDOW_MODE)
+        if win_mode not in _WINDOW_MODE_KEYS:
+            win_mode = _fe.DEFAULT_WINDOW_MODE
+        win_from = _fe.parse_window_date(state.window_from_var.get())
+        win_to = _fe.parse_window_date(state.window_to_var.get())
+        # A blank or unparseable "from" would otherwise silently widen the
+        # window to everything; fall back to the documented default.
+        if win_from is None:
+            win_from = _fe.parse_window_date(_fe.DEFAULT_WINDOW_FROM)
+        new_config["fetch_window"] = {
+            "mode": win_mode,
+            "from": win_from.isoformat() if win_from else _fe.DEFAULT_WINDOW_FROM,
+            "to": win_to.isoformat() if (win_to and win_mode == "range") else "",
+        }
+    except Exception as e:
+        logger.warning("Could not collect fetch_window: %s", e)
 
     sources_tree = state.sources_tree
     sources = []

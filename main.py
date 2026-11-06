@@ -35,7 +35,7 @@ from dotenv import load_dotenv
 from zoneinfo import ZoneInfo
 
 from core import crawler as crawler_module
-from core.filter_engine import apply_filters
+from core.filter_engine import apply_date_window, apply_filters, resolve_window
 from core.notifier import Notifier
 from core.parser import normalize_pub_dates
 from core.telegram_bot import TelegramNotifier, validate_chat_id, validate_token
@@ -104,6 +104,13 @@ DEFAULT_CONFIG_TEMPLATE = {
     "scheduler": {
         "mode": "fixed",
         "fixed_interval_minutes": 5,
+    },
+    # Only consider articles published inside this window.
+    #   mode: since -> from..now | range -> from..to | all -> no limit
+    "fetch_window": {
+        "mode": "since",
+        "from": "2026-10-26",
+        "to": "",
     },
     "sources": [
         {
@@ -442,8 +449,27 @@ def job_execute(config: dict, notifier: Notifier, dry_run: bool, logger_: loggin
     # Localize dates
     normalize_pub_dates(all_articles, tz_name=tz_name)
 
+    # Date window — runs before the keyword filters so "filtered" counts
+    # only what falls inside the period the user asked for.
+    in_window = apply_date_window(all_articles, config, tz_name=tz_name)
+    stats["out_of_window"] = len(all_articles) - len(in_window)
+    if stats["out_of_window"]:
+        w_start, w_end = resolve_window(config, tz_name)
+        print(
+            f"  Date window {w_start.date() if w_start else '-'} .. "
+            f"{w_end.date() if w_end else 'now'}: "
+            f"dropped {stats['out_of_window']} of {len(all_articles)}"
+        )
+
+    if not in_window:
+        print("No articles fall inside the configured date window.")
+        stats["duration_s"] = time.time() - t0
+        _job_state["running"] = False
+        _job_state["last_finished_at"] = time.time()
+        return stats
+
     # Filter
-    matched = apply_filters(all_articles, config)
+    matched = apply_filters(in_window, config)
     stats["filtered"] = len(matched)
 
     if not matched:

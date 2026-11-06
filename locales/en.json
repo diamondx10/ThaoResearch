@@ -207,5 +207,16 @@
   "storage.reset_removed": "Removed: {paths}",
   "storage.reset_none": "No saved choice was set.",
   "storage.fallback_warning": "Your chosen folder could not be written to, so a fallback is in use. Pick another folder.",
-  "toast.btn_read_more": "Read more"
+  "toast.btn_read_more": "Read more",
+  "fetchwin.block_title": "Fetch period",
+  "fetchwin.label_mode": "Period:",
+  "fetchwin.mode_since": "From a date until now",
+  "fetchwin.mode_range": "Between two dates",
+  "fetchwin.mode_all": "No limit",
+  "fetchwin.label_from": "From date:",
+  "fetchwin.label_to": "To date:",
+  "fetchwin.hint": "Format YYYY-MM-DD. Both dates are included.",
+  "fetchwin.err_from": "“From date” is not a valid date.",
+  "fetchwin.err_to": "“To date” is not a valid date.",
+  "fetchwin.err_order": "“To date” is before “From date” — they will be swapped."
 }
