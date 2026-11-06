@@ -708,9 +708,74 @@ def _show_license_info(parent):
     messagebox.showinfo(t("license.title", default="ThaoResearch - License"), text)
 
 
+def _scrollable_page(notebook, title: str) -> ttk.Frame:
+    """Add a vertically scrollable page to ``notebook`` and return its body.
+
+    Tk notebook pages do not scroll: a page taller than the pane is simply
+    clipped, with nothing on screen to say so. The General tab needs about
+    955px and the pane offers roughly 650px in the default 980x700 window,
+    so the bottom ~305px -- the whole Scheduler block and the Storage
+    data-folder picker -- was unreachable unless the user maximized.
+
+    Only this tab needs it. Sources and Commodities hold a Treeview packed
+    with ``expand=True``; those stretch to the pane and bring their own
+    scrollbars, and nesting them in a canvas would give them an unbounded
+    height instead. Filters and About measure well under the limit.
+
+    Returns the inner frame to grid into -- callers must not touch the
+    canvas, which owns the scrolling.
+    """
+    outer = ttk.Frame(notebook)
+    notebook.add(outer, text=title)
+
+    canvas = tk.Canvas(
+        outer,
+        highlightthickness=0,
+        borderwidth=0,
+        background=theme.COLORS["bg"],
+    )
+    vbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=vbar.set)
+    canvas.pack(side="left", fill="both", expand=True)
+
+    body = ttk.Frame(canvas, padding=12)
+    window_id = canvas.create_window((0, 0), window=body, anchor="nw")
+
+    def _sync(_event=None):
+        """Keep the scrollregion honest and hide the bar when it is idle."""
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        needed = body.winfo_reqheight() > canvas.winfo_height()
+        if needed and not vbar.winfo_ismapped():
+            vbar.pack(side="right", fill="y")
+        elif not needed and vbar.winfo_ismapped():
+            vbar.pack_forget()
+            canvas.yview_moveto(0.0)
+
+    def _fit_width(event):
+        # Without this the inner frame keeps its requested width and the
+        # right-hand column ("restart to apply") sits outside the viewport.
+        canvas.itemconfigure(window_id, width=event.width)
+        _sync()
+
+    body.bind("<Configure>", _sync)
+    canvas.bind("<Configure>", _fit_width)
+
+    def _on_wheel(event):
+        if body.winfo_reqheight() <= canvas.winfo_height():
+            return  # nothing to scroll; let the event through
+        canvas.yview_scroll(-1 * (event.delta // 120), "units")
+
+    # Bind while the pointer is over this page only. ``bind_all`` left
+    # permanently in place would steal the wheel from every other widget
+    # in the app, including the Treeviews on the sibling tabs.
+    canvas.bind("<Enter>", lambda _e: canvas.bind_all("<MouseWheel>", _on_wheel))
+    canvas.bind("<Leave>", lambda _e: canvas.unbind_all("<MouseWheel>"))
+
+    return body
+
+
 def _build_general_tab(notebook, config, state, config_path, on_save=None):
-    tab = ttk.Frame(notebook, padding=12)
-    notebook.add(tab, text=t("settings.tab_general"))
+    tab = _scrollable_page(notebook, t("settings.tab_general"))
 
     general = config.get("general", {})
     scheduler = config.get("scheduler", {})
